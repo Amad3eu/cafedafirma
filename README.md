@@ -23,6 +23,7 @@ Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para h
 - **Métricas** — hoje, últimos 7 dias, média por dia, horário de pico.
 - **Exportar CSV** — baixa todo o histórico (`;` como separador, abre direto no Excel em pt-BR).
 - **Funciona offline / sem banco** — se não houver banco configurado, o histórico fica no `localStorage` do navegador e o app avisa isso na tela.
+- **Migração automática** — quando o banco é conectado, o app oferece importar para o histórico compartilhado os cafés que estavam salvos só no navegador (ou descartá-los).
 - **Extensão de navegador** — registra o café sem abrir o site, mostra o último café + contador do dia e dispara notificação quando o intervalo passa.
 
 ---

@@ -1,0 +1,30 @@
+feat: adiciona Café da Firma, app de registro das feitas de café
+
+Site em Next.js 16 (App Router) + React 19 + Tailwind 4, pronto para deploy
+na Vercel, com extensão para Chrome, Edge e Firefox.
+
+Principais recursos:
+- registro do café em um clique (com opção de informar um horário passado)
+- aviso "hora de cadastrar a feita" quando o intervalo configurado passa
+  (1h a 6h), com confirmação e desfazer
+- cartão do último café com "há quanto tempo" e quem registrou
+- lista dos cafés de hoje e histórico agrupado por dia (60 dias)
+- gráficos de cafés por dia (14 dias) e por hora, com horário de pico
+- métricas de hoje, últimos 7 dias, média por dia e pico
+- exportação do histórico em CSV
+
+Backend:
+- API REST /api/entries (GET, POST, DELETE) com CORS liberado para a extensão
+- persistência em Upstash Redis / Vercel KV via API REST (sem dependências)
+- fallback em arquivo local (dev) e em localStorage no navegador,
+  com aviso na interface quando não há banco configurado
+
+Extensão (MV3):
+- popup com último café, contadores e botão de registrar
+- badge com o total de cafés do dia
+- notificação quando o intervalo passa e página de opções
+
+Outros:
+- ícones gerados por script (sem dependências externas)
+- scripts de seed de demonstração e de empacotamento da extensão
+- README com passo a passo de deploy na Vercel e instalação da extensão
