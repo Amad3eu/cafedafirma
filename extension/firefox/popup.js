@@ -10,6 +10,32 @@ function normalizeBase(url) {
     .replace(/\/+$/, "");
 }
 
+/** "https://site.com/*" a partir da URL base configurada. */
+function originPattern(baseUrl) {
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return `${parsed.origin}/*`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Firefox (MV3) NÃO concede permissões de host na instalação — nem em add-on
+ * temporário. Sem isso, qualquer fetch para o site falha como CORS.
+ */
+async function hasHostAccess(baseUrl) {
+  const pattern = originPattern(baseUrl);
+  if (!pattern) return false;
+  if (!api.permissions?.contains) return true;
+  try {
+    return await api.permissions.contains({ origins: [pattern] });
+  } catch {
+    return true;
+  }
+}
+
 async function getConfig() {
   const stored = await api.storage.local.get(DEFAULTS);
   return {
@@ -158,19 +184,33 @@ async function load() {
   if (!config.baseUrl) {
     el("setup").hidden = false;
     el("content").hidden = true;
+    el("grant").hidden = true;
     return;
   }
 
   el("setup").hidden = true;
-  el("content").hidden = false;
   el("open-site").href = config.baseUrl;
+
+  // Firefox: sem permissão de host o fetch falha como CORS
+  const granted = await hasHostAccess(config.baseUrl);
+  if (!granted) {
+    el("grant").hidden = false;
+    el("content").hidden = true;
+    showError("");
+    return;
+  }
+  el("grant").hidden = true;
+  el("content").hidden = false;
 
   try {
     const { entries, storage } = await fetchHistory(config.baseUrl);
     render(entries, storage);
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     showError(
-      "Não foi possível falar com o site. Confira o endereço nas configurações.",
+      /Failed to fetch|NetworkError|CORS/i.test(detail)
+        ? "Sem acesso ao site. Clique em “Permitir acesso” (ou confira o endereço nas configurações)."
+        : `Não foi possível falar com o site (${detail}). Confira o endereço nas configurações.`,
     );
   }
 }
@@ -195,8 +235,13 @@ async function register() {
       flash.hidden = true;
     }, 4000);
     await load();
-  } catch {
-    showError("Não deu para registrar agora. Tente novamente.");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    showError(
+      /Failed to fetch|NetworkError|CORS/i.test(detail)
+        ? "Sem acesso ao site. Clique em “Permitir acesso” e tente de novo."
+        : `Não deu para registrar agora (${detail}).`,
+    );
   } finally {
     button.disabled = false;
     button.textContent = "☕ Registrar café agora";
@@ -216,6 +261,36 @@ el("setup-save").addEventListener("click", async () => {
 });
 el("setup-url").addEventListener("keydown", (event) => {
   if (event.key === "Enter") el("setup-save").click();
+});
+
+/**
+ * Pedido de permissão: precisa acontecer DENTRO do clique e sem `await` antes,
+ * senão o navegador descarta o gesto do usuário.
+ */
+el("grant-btn").addEventListener("click", () => {
+  const pattern = originPattern(currentConfig.baseUrl);
+  if (!pattern || !api.permissions?.request) {
+    showError(
+      "Abra as configurações e libere o acesso ao site em Permissões (about:addons).",
+    );
+    return;
+  }
+  api.permissions
+    .request({ origins: [pattern] })
+    .then((granted) => {
+      if (granted) {
+        showError("");
+        return load();
+      }
+      showError(
+        "Permissão não concedida. Sem ela a extensão não consegue falar com o site.",
+      );
+    })
+    .catch(() => {
+      showError(
+        "Não foi possível pedir a permissão. Abra about:addons → Café da Firma → Permissões.",
+      );
+    });
 });
 
 load();

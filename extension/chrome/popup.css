@@ -18,6 +18,39 @@
   display: none !important;
 }
 
+.grant {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: #fff6ed;
+  border: 1px solid rgba(180, 105, 58, 0.4);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 11.5px;
+  color: #7d3f1c;
+}
+
+.grant p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.grant button {
+  border: 0;
+  border-radius: 9px;
+  background: var(--caramel);
+  color: #fff;
+  padding: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grant button:hover {
+  background: var(--caramel-deep);
+}
+
+
 body {
   margin: 0;
   width: 320px;

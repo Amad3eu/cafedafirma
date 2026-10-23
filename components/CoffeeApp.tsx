@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CoffeeEntry, StorageKind } from "@/lib/types";
-import { DAY } from "@/lib/constants";
+import {
+  DAY,
+} from "@/lib/constants";
 import {
   WEEKDAYS,
   dayKey,
@@ -66,6 +68,8 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
   const [manualTime, setManualTime] = useState("");
   const [pendingLocal, setPendingLocal] = useState<CoffeeEntry[]>([]);
   const [importing, setImporting] = useState(false);
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,6 +81,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     const { mode: nextMode, entries: list } = await loadEntries(HISTORY_DAYS);
     setMode(nextMode);
     setEntries(list);
+    setLastSync(Date.now());
     return nextMode;
   }, []);
 
@@ -110,19 +115,21 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
   }, [refresh]);
 
   // Em modo compartilhado, busca novidades dos colegas periodicamente.
+  // Só consulta com a aba visível, para economizar comandos do Redis.
   useEffect(() => {
     if (mode !== "shared") return;
-    const poll = setInterval(() => {
-      void refresh();
-    }, 45_000);
 
-    const onFocus = () => {
+    const tick = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    document.addEventListener("visibilitychange", onFocus);
+
+    const poll = setInterval(tick, 20_000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
     return () => {
       clearInterval(poll);
-      document.removeEventListener("visibilitychange", onFocus);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
     };
   }, [mode, refresh]);
 
@@ -152,13 +159,36 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           who: name.trim() || undefined,
         });
         setMode(nextMode);
-        setEntries((prev) => [...prev, entry].sort((a, b) => a.ts - b.ts));
+        setEntries((prev) =>
+          [...prev, entry].sort((a, b) => a.ts - b.ts),
+        );
         setNow(Date.now());
         showToast({
           kind: "success",
           text: `Café registrado às ${formatTime(entry.ts)}${name.trim() ? ` — ${name.trim()}` : ""}`,
           undoId: entry.id,
         });
+
+        // confirma que o registro realmente chegou ao servidor
+        if (nextMode === "shared") {
+          try {
+            const res = await fetch("/api/entries?days=1", { cache: "no-store" });
+            if (res.ok) {
+              const data = (await res.json()) as { entries?: CoffeeEntry[] };
+              const saved = (data.entries ?? []).some(
+                (item) => item.id === entry.id,
+              );
+              if (!saved) {
+                showToast({
+                  kind: "error",
+                  text: "O café apareceu aqui, mas não foi confirmado no servidor. Abra /api/health para ver o diagnóstico.",
+                });
+              }
+            }
+          } catch {
+            /* verificação é opcional */
+          }
+        }
       } catch {
         showToast({
           kind: "error",
@@ -219,6 +249,16 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     setPendingLocal([]);
     showToast({ kind: "success", text: "Registros locais descartados." });
   }, [showToast]);
+
+  const syncNow = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  }, [refresh, syncing]);
 
   const registerManual = useCallback(() => {
     if (!manualTime) return;
@@ -397,8 +437,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               Café da Firma
             </h1>
             <p className="text-[11px] text-muted sm:text-xs">
-              Registro das feitas de café ·{" "}
-              {mounted ? formatLongDate(now) : "—"}
+              Registro das feitas de café · {mounted ? formatLongDate(now) : "—"}
             </p>
           </div>
         </div>
@@ -427,6 +466,26 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
                 ? "compartilhado"
                 : "só neste navegador"}
           </span>
+
+          <button
+            type="button"
+            onClick={() => void syncNow()}
+            disabled={syncing}
+            title={
+              lastSync
+                ? `Atualizado às ${formatTime(lastSync)} — clique para buscar novidades`
+                : "Buscar novidades"
+            }
+            className="inline-flex items-center gap-1.5 rounded-full border border-latte bg-card px-2.5 py-1 text-[11px] font-medium text-mocha transition hover:border-caramel/60 hover:bg-cream disabled:opacity-60"
+          >
+            <span
+              className={syncing ? "inline-flex animate-spin" : "inline-flex"}
+              aria-hidden
+            >
+              ↻
+            </span>
+            {lastSync ? `atualizado ${formatTime(lastSync)}` : "atualizar"}
+          </button>
 
           <label className="flex items-center gap-1.5 rounded-full border border-latte bg-card px-2.5 py-1 text-[11px] text-muted">
             <UserIcon size={13} className="shrink-0" />
@@ -611,11 +670,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
                   className="rounded-lg border border-white/20 bg-white/10 px-1.5 py-1 text-xs text-cream outline-none disabled:opacity-40"
                 >
                   {REMIND_OPTIONS.map((minutes) => (
-                    <option
-                      key={minutes}
-                      value={minutes}
-                      className="text-espresso"
-                    >
+                    <option key={minutes} value={minutes} className="text-espresso">
                       {durationLabel(minutes)}
                     </option>
                   ))}
@@ -790,9 +845,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  const entry = entries.find(
-                    (item) => item.id === toast.undoId,
-                  );
+                  const entry = entries.find((item) => item.id === toast.undoId);
                   setToast(null);
                   if (entry) void removeEntry(entry);
                 }}

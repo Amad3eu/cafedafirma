@@ -47,9 +47,21 @@
           <small>Notificação quando o último café passar desse tempo.</small>
         </label>
 
+        <div id="grant" class="grant" hidden>
+          <p>
+            <strong>Permissão de acesso ao site pendente</strong><br />
+            O Firefox não libera isso automaticamente. Clique no botão para
+            autorizar.
+          </p>
+          <button type="button" id="grant-btn">Permitir acesso ao site</button>
+        </div>
+
         <div class="actions">
           <button type="submit" class="primary">Salvar</button>
           <button type="button" id="test" class="ghost">Testar conexão</button>
+          <button type="button" id="test-notify" class="ghost">
+            Testar notificação
+          </button>
           <a id="open-site" class="ghost link" href="#" target="_blank" rel="noreferrer"
             >Abrir site ↗</a
           >
