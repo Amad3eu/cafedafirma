@@ -35,7 +35,7 @@
         </label>
 
         <label>
-          <span>Avisar depois de</span>
+          <span>Avisar depois de (manhã, antes das 13h)</span>
           <select id="remindMin">
             <option value="60">1 hora</option>
             <option value="120">2 horas</option>
@@ -45,6 +45,69 @@
             <option value="360">6 horas</option>
           </select>
           <small>Notificação quando o último café passar desse tempo.</small>
+        </label>
+
+        <label>
+          <span>Avisar depois de (tarde, a partir das 13h)</span>
+          <select id="afternoonMin">
+            <option value="60">1 hora</option>
+            <option value="120">2 horas</option>
+            <option value="180">3 horas</option>
+            <option value="240">4 horas</option>
+            <option value="300">5 horas</option>
+            <option value="360">6 horas</option>
+          </select>
+          <small>Intervalo maior à tarde, quando o ritmo de café costuma cair.</small>
+        </label>
+
+        <label>
+          <span>Avisar o primeiro café do dia a partir de</span>
+          <select id="firstAt">
+            <option value="-1">Não avisar</option>
+            <option value="7">7h</option>
+            <option value="8">8h</option>
+            <option value="9">9h</option>
+            <option value="10">10h</option>
+            <option value="11">11h</option>
+          </select>
+          <small>Se ninguém registrou café até essa hora, a extensão lembra.</small>
+        </label>
+
+        <label>
+          <span>Avisar quando um colega registrar café</span>
+          <select id="teamNotify">
+            <option value="1">Sim</option>
+            <option value="0">Não</option>
+          </select>
+          <small
+            >Mostra “Fulano fez café” na notificação e no popup. Usa o seu nome
+            acima para não avisar de você mesmo.</small
+          >
+        </label>
+
+        <label>
+          <span>Clique no ícone da extensão</span>
+          <select id="clickAction">
+            <option value="popup">Abrir o painel</option>
+            <option value="register">Registrar café na hora (1 clique)</option>
+          </select>
+          <small
+            >Com “registrar na hora”, um clique no ícone grava o café. O painel
+            continua disponível no botão direito do ícone (ou Alt+Shift+P).</small
+          >
+        </label>
+
+        <label>
+          <span>Verificar novidades a cada</span>
+          <select id="watchMin">
+            <option value="1">1 minuto (mais ágil, mais consultas)</option>
+            <option value="2">2 minutos (recomendado)</option>
+            <option value="5">5 minutos (economiza consultas)</option>
+          </select>
+          <small
+            >É o intervalo em que o ícone e os avisos de equipe são
+            atualizados.</small
+          >
         </label>
 
         <div id="grant" class="grant" hidden>
@@ -71,8 +134,12 @@
       </form>
 
       <p class="hint">
-        Dica: clique com o botão direito no ícone da extensão → “Fixar” para
-        deixá-lo sempre visível na barra do navegador.
+        <strong>Atalhos:</strong> <kbd>Alt+Shift+C</kbd> registra um café e
+        <kbd>Alt+Shift+P</kbd> abre o painel (pode ser trocado em
+        <code>chrome://extensions/shortcuts</code> ou
+        <code>about:addons</code> → engrenagem → Gerenciar atalhos).<br />
+        Botão direito no ícone: registrar, abrir painel e configurar. Clique com
+        o botão direito → “Fixar” deixa o ícone sempre visível.
       </p>
     </div>
 

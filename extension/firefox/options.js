@@ -1,6 +1,15 @@
 /* Café da Firma — opções */
 const api = globalThis.browser ?? globalThis.chrome;
-const DEFAULTS = { baseUrl: "", name: "", remindMin: 180 };
+const DEFAULTS = {
+  baseUrl: "",
+  name: "",
+  remindMin: 180,
+  afternoonMin: 240,
+  firstAt: 8,
+  teamNotify: true,
+  watchMin: 2,
+  clickAction: "popup",
+};
 
 const el = (id) => document.getElementById(id);
 
@@ -54,6 +63,13 @@ async function restore() {
   el("baseUrl").value = stored.baseUrl || "";
   el("name").value = stored.name || "";
   el("remindMin").value = String(stored.remindMin || DEFAULTS.remindMin);
+  el("afternoonMin").value = String(stored.afternoonMin || DEFAULTS.afternoonMin);
+  el("firstAt").value = String(
+    Number.isFinite(Number(stored.firstAt)) ? Number(stored.firstAt) : DEFAULTS.firstAt,
+  );
+  el("teamNotify").value = stored.teamNotify === false ? "0" : "1";
+  el("watchMin").value = String(stored.watchMin || DEFAULTS.watchMin);
+  el("clickAction").value = stored.clickAction === "register" ? "register" : "popup";
   const base = normalizeBase(stored.baseUrl);
   if (base) el("open-site").href = base;
   await refreshGrantBanner();
@@ -70,7 +86,21 @@ el("form").addEventListener("submit", async (event) => {
     baseUrl,
     name: el("name").value.trim().slice(0, 20),
     remindMin: Number(el("remindMin").value) || DEFAULTS.remindMin,
+    afternoonMin: Number(el("afternoonMin").value) || DEFAULTS.afternoonMin,
+    firstAt: Number(el("firstAt").value),
+    teamNotify: el("teamNotify").value === "1",
+    watchMin: Number(el("watchMin").value) || DEFAULTS.watchMin,
+    clickAction: el("clickAction").value === "register" ? "register" : "popup",
   });
+
+  // avisa o background para reagendar as verificações
+  try {
+    Promise.resolve(api.runtime.sendMessage({ type: "cafe:config" })).catch(
+      () => {},
+    );
+  } catch {
+    /* ignora */
+  }
   el("open-site").href = baseUrl;
   setStatus("Configurações salvas ☕", "ok");
   await refreshGrantBanner();

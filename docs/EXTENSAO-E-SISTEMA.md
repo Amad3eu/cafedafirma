@@ -231,3 +231,82 @@ curl -s "https://SEU-SITE.vercel.app/api/entries?days=1"
 ### Por que a extensão não notifica
 
 A notificação só dispara quando **existe um café de hoje** e o intervalo configurado passou. Sem dados (`total: 0`), não há o que avisar. Para testar o aviso em si: abra as opções da extensão → **Testar notificação**.
+
+### Quando a notificação aparece (e quando não)
+
+A notificação **não** é um alarme de relógio: ela depende de três condições ao mesmo tempo.
+
+1. existe **um café registrado hoje** (`total > 0` e o último é de hoje);
+2. já passou o **intervalo** configurado nas opções (padrão 3h) desde esse café;
+3. a extensão está instalada e o navegador permite notificações.
+
+Ou seja: logo depois de registrar um café, **não há nada para avisar** — é o comportamento correto. A conferência roda a cada 5 minutos (alarm) e também quando você abre o popup (o badge do ícone atualiza na hora).
+
+Para validar rapidamente:
+
+- **Testar o canal**: opções da extensão → **Testar notificação**.
+- **Testar a regra**: opções → “Avisar depois de” → **1 hora**; registre um café com “Outro horário” 2 horas atrás e não registre mais nada. Em até 5 minutos a notificação chega.
+- Se nada aparecer: verifique permissão de notificação do navegador e o **“Não perturbe”** do sistema operacional.
+
+---
+
+## 8. Avisos da extensão (v1.2)
+
+| Aviso | Quando dispara | Padrão |
+| --- | --- | --- |
+| **Primeiro café do dia** | ninguém registrou café hoje e já passou do horário configurado | a partir das 8h |
+| **Intervalo (manhã)** | último café de hoje passou do intervalo | 3 h (antes das 13h) |
+| **Intervalo (tarde)** | idem, com intervalo maior | 4 h (a partir das 13h) |
+| **Colega fez café** | alguém com nome diferente do seu registrou um café novo | ligado |
+| **Confirmação** | você registrou pelo botão da notificação | — |
+
+- O ícone/badge é atualizado a cada **2 minutos** (configurável: 1 / 2 / 5).
+- Notificações de lembrete e de primeiro café têm o botão **"☕ Registrar café agora"**, que registra sem abrir o site.
+- O popup ganhou a seção **"Equipe hoje"**: ex. `Amadeu 2 · Lucas 1`.
+- O site mostra o mesmo em pílulas **"quem fez"** na aba Hoje.
+
+### Requisitos para o aviso de colega funcionar
+
+1. Quem registra precisa ter o **nome preenchido** (site ou opções da extensão).
+2. Cada colega precisa da extensão instalada, com o **mesmo endereço do site** e o **próprio nome** configurado (para não receber aviso do próprio café).
+3. "Avisar quando um colega registrar café" ligado.
+
+> A verificação é por consulta ao servidor (não há push), então o aviso chega com até `verificar a cada` minutos de atraso — 2 min por padrão.
+
+---
+
+## 9. Registrar sem abrir nada (v1.3)
+
+Três formas de gravar um café, além do botão do popup:
+
+| Forma | Como usar |
+| --- | --- |
+| **Clique no ícone** | Opções → “Clique no ícone da extensão” → **Registrar café na hora**. Um clique grava e mostra a confirmação. |
+| **Menu do botão direito** no ícone | ☕ Registrar café agora · Abrir painel · Configurar |
+| **Atalho de teclado** | `Alt+Shift+C` registra · `Alt+Shift+P` abre o painel |
+
+- Atalhos podem ser trocados em `chrome://extensions/shortcuts` (Chrome/Edge) ou `about:addons` → engrenagem → **Gerenciar atalhos** (Firefox).
+- Com o clique no ícone em modo “registrar”, o painel continua acessível pelo botão direito → **Abrir painel** (ou `Alt+Shift+P`).
+- Toda gravação mostra a notificação **“Café registrado ☕ — Feita registrada às HH:MM — Seu Nome”** como confirmação.
+
+---
+
+## 10. Nome do usuário (v1.4)
+
+O nome é o que permite o aviso "**Amadeu fez café**" e a lista "quem fez". Para ninguém esquecer:
+
+- **Extensão:** na primeira abertura aparece o bloco **"Como você quer aparecer?"** com campo e botão *Salvar nome*. Se tentar registrar sem nome, a extensão pede o nome em vez de gravar em branco.
+- **Site:** o campo ao lado do selo fica destacado (anel laranja) e aparece o aviso **"Coloque seu nome"**. O registro continua permitido, mas o café não será identificado na atividade da equipe.
+- O nome fica salvo por pessoa (storage.local da extensão e localStorage do site).
+
+### Design do popup (v1.6)
+
+Sistema de espaçamento em múltiplos de 4 px (`4 / 8 / 12 / 16 / 20 / 24`), raios padronizados
+(10 para controles, 14 para cartões, 18 para o bloco do último café) e largura de 372 px.
+
+- **Hierarquia:** último café (bloco escuro) → lembrete → botão principal → métricas → equipe → lista.
+- **Métricas** viraram um único cartão dividido por linhas (menos caixas competindo).
+- **Equipe hoje** em *chips* (`Ana 2`, `Rafa 1`) em vez de texto corrido.
+- **Lista** sem bordas por item: apenas separadores finos.
+- O cartão **"Cafés de hoje" desaparece** quando não há registros.
+- O erro só aparece após uma tentativa e é limpo ao reabrir o popup.

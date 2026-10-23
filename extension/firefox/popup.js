@@ -141,9 +141,36 @@ function render(entries, storage) {
     reminder.hidden = true;
   }
 
+  // equipe hoje: chips com nome e quantidade
+  const byWho = new Map();
+  for (const entry of today) {
+    const key = entry.who || "sem nome";
+    byWho.set(key, (byWho.get(key) || 0) + 1);
+  }
+
+  const teamBox = el("team-list");
+  teamBox.textContent = "";
+  if (byWho.size === 0) {
+    const chip = document.createElement("span");
+    chip.className = "chip chip--empty";
+    chip.textContent = "ninguém registrou café hoje ainda";
+    teamBox.append(chip);
+  } else {
+    for (const [who, count] of [...byWho.entries()].sort((a, b) => b[1] - a[1])) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.append(document.createTextNode(who));
+      const num = document.createElement("b");
+      num.textContent = String(count);
+      chip.append(num);
+      teamBox.append(chip);
+    }
+  }
+
   const list = el("list");
   list.textContent = "";
   const recent = [...today].reverse().slice(0, 6);
+  el("today-card").hidden = recent.length === 0;
   if (recent.length === 0) {
     const li = document.createElement("li");
     li.className = "empty";
@@ -170,6 +197,8 @@ function render(entries, storage) {
 }
 
 async function load() {
+  const clearErrorOnLoad = true;
+  if (clearErrorOnLoad) showError("");
   const config = await getConfig();
   currentConfig = config;
 
@@ -185,7 +214,15 @@ async function load() {
     el("setup").hidden = false;
     el("content").hidden = true;
     el("grant").hidden = true;
+    el("namebox").hidden = true;
     return;
+  }
+
+  // pede o nome na primeira vez (é o que identifica os cafés na equipe)
+  const needName = !config.name.trim();
+  el("namebox").hidden = !needName;
+  if (needName) {
+    el("name-input").value = "";
   }
 
   el("setup").hidden = true;
@@ -205,6 +242,15 @@ async function load() {
   try {
     const { entries, storage } = await fetchHistory(config.baseUrl);
     render(entries, storage);
+
+    // atualiza o badge do ícone na hora em que o popup abre
+    try {
+      Promise.resolve(
+        api.runtime.sendMessage({ type: "cafe:refresh" }),
+      ).catch(() => {});
+    } catch {
+      /* navegador sem runtime.sendMessage disponível */
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     showError(
@@ -216,6 +262,12 @@ async function load() {
 }
 
 async function register() {
+  if (!currentConfig.name.trim()) {
+    el("namebox").hidden = false;
+    el("name-input").focus();
+    showError("Defina seu nome antes de registrar — é o que aparece para a equipe.");
+    return;
+  }
   const button = el("register");
   const flash = el("flash");
   button.disabled = true;
@@ -261,6 +313,23 @@ el("setup-save").addEventListener("click", async () => {
 });
 el("setup-url").addEventListener("keydown", (event) => {
   if (event.key === "Enter") el("setup-save").click();
+});
+
+async function saveNameFromPopup() {
+  const value = el("name-input").value.trim().slice(0, 20);
+  if (!value) {
+    showError("Digite um nome para continuar.");
+    return;
+  }
+  await api.storage.local.set({ name: value });
+  showError("");
+  el("namebox").hidden = true;
+  await load();
+}
+
+el("name-save").addEventListener("click", saveNameFromPopup);
+el("name-input").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") void saveNameFromPopup();
 });
 
 /**

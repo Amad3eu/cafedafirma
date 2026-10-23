@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Café da Firma",
-  "version": "1.1.0",
+  "version": "1.6.0",
   "description": "Registre a feita do café em um clique e veja o histórico sem abrir o site.",
   "browser_specific_settings": {
     "gecko": {
@@ -20,7 +20,8 @@
   "permissions": [
     "storage",
     "notifications",
-    "alarms"
+    "alarms",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://*/*",
@@ -54,5 +55,19 @@
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
+  },
+  "commands": {
+    "registrar-cafe": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Registrar café agora"
+    },
+    "abrir-painel": {
+      "suggested_key": {
+        "default": "Alt+Shift+P"
+      },
+      "description": "Abrir o painel do Café da Firma"
+    }
   }
 }
