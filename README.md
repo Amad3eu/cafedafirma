@@ -108,7 +108,14 @@ Pronto: o selo no topo do site passa de *"só neste navegador"* para **"comparti
 | `UPSTASH_REDIS_REST_URL` | não (recomendada) | endpoint REST do Redis |
 | `UPSTASH_REDIS_REST_TOKEN` | não (recomendada) | token do Redis |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | não | alternativa (Vercel KV) |
+| `STORAGE_URL` / `STORAGE_TOKEN` | não | integração criada com prefixo `STORAGE` |
+| `<PREFIXO>_URL` / `<PREFIXO>_TOKEN` | não | qualquer prefixo customizado da integração |
 | `CAFE_FILE_STORE=1` | não | força salvar em arquivo mesmo em produção (só use em servidor próprio) |
+
+> O app detecta automaticamente o par certo: procura primeiro os nomes conhecidos e,
+> se não achar, varre o ambiente atrás de uma variável `*_URL` apontando para o Upstash
+> com o token correspondente. Ou seja, **não importa o prefixo** escolhido na hora de
+> conectar o banco (Production/Preview/Development).
 
 Veja `.env.example`.
 
@@ -152,6 +159,12 @@ npm run build:ext
 - **Opções**: endereço do site, seu nome, intervalo do aviso (1h a 6h) e botão de teste de conexão.
 
 ---
+
+## 🧩 Extensão: instalar, publicar e como o sistema funciona
+
+Guia detalhado em [docs/EXTENSAO-E-SISTEMA.md](docs/EXTENSAO-E-SISTEMA.md): arquitetura,
+fluxos, instalação em 2 minutos (carregar sem compactação), publicação no Chrome Web Store,
+Edge Add-ons e Firefox AMO (com checklist e justificativa de permissões) e o checklist pós-deploy.
 
 ## 🔌 API
 
