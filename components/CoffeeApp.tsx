@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CoffeeEntry, StorageKind } from "@/lib/types";
-import {
-  DAY,
-} from "@/lib/constants";
+import { DAY } from "@/lib/constants";
 import {
   WEEKDAYS,
   dayKey,
@@ -21,10 +19,12 @@ import {
   type ClientMode,
   type Settings,
   DEFAULT_SETTINGS,
+  clearLocalEntries,
   deleteEntry,
   loadEntries,
   loadName,
   loadSettings,
+  readLocalEntries,
   registerEntry,
   saveName,
   saveSettings,
@@ -64,6 +64,8 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
   const [name, setName] = useState("");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [manualTime, setManualTime] = useState("");
+  const [pendingLocal, setPendingLocal] = useState<CoffeeEntry[]>([]);
+  const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +77,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     const { mode: nextMode, entries: list } = await loadEntries(HISTORY_DAYS);
     setMode(nextMode);
     setEntries(list);
+    return nextMode;
   }, []);
 
   useEffect(() => {
@@ -84,7 +87,20 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
       setName(loadName());
       setSettings(loadSettings());
 
-      refresh().finally(() => setLoading(false));
+      refresh()
+        .then((loadedMode) => {
+          // se o histórico passou a ser compartilhado, oferece migrar o que
+          // ficou salvo neste navegador no modo local
+          if (loadedMode === "shared") {
+            const cutoff = Date.now() - 59 * DAY;
+            setPendingLocal(
+              readLocalEntries()
+                .filter((entry) => entry.ts >= cutoff)
+                .sort((a, b) => a.ts - b.ts),
+            );
+          }
+        })
+        .finally(() => setLoading(false));
     };
 
     start();
@@ -136,9 +152,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           who: name.trim() || undefined,
         });
         setMode(nextMode);
-        setEntries((prev) =>
-          [...prev, entry].sort((a, b) => a.ts - b.ts),
-        );
+        setEntries((prev) => [...prev, entry].sort((a, b) => a.ts - b.ts));
         setNow(Date.now());
         showToast({
           kind: "success",
@@ -174,6 +188,37 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     },
     [mode, refresh, showToast],
   );
+
+  const importLocalEntries = useCallback(async () => {
+    if (importing || pendingLocal.length === 0) return;
+    setImporting(true);
+    try {
+      for (const entry of pendingLocal) {
+        await registerEntry({ ts: entry.ts, who: entry.who });
+      }
+      clearLocalEntries();
+      const total = pendingLocal.length;
+      setPendingLocal([]);
+      await refresh();
+      showToast({
+        kind: "success",
+        text: `${total} registro(s) importados para o histórico compartilhado.`,
+      });
+    } catch {
+      showToast({
+        kind: "error",
+        text: "Falha ao importar. Tente de novo em alguns segundos.",
+      });
+    } finally {
+      setImporting(false);
+    }
+  }, [importing, pendingLocal, refresh, showToast]);
+
+  const discardLocalEntries = useCallback(() => {
+    clearLocalEntries();
+    setPendingLocal([]);
+    showToast({ kind: "success", text: "Registros locais descartados." });
+  }, [showToast]);
 
   const registerManual = useCallback(() => {
     if (!manualTime) return;
@@ -352,7 +397,8 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               Café da Firma
             </h1>
             <p className="text-[11px] text-muted sm:text-xs">
-              Registro das feitas de café · {mounted ? formatLongDate(now) : "—"}
+              Registro das feitas de café ·{" "}
+              {mounted ? formatLongDate(now) : "—"}
             </p>
           </div>
         </div>
@@ -414,6 +460,45 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             </code>
             . Passo a passo no README.
           </p>
+        </div>
+      ) : null}
+
+      {/* Migração do histórico local para o compartilhado ---------- */}
+      {mounted && mode === "shared" && pendingLocal.length > 0 ? (
+        <div className="animate-rise mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-sky-600/25 bg-sky-50/80 px-4 py-3">
+          <CloudIcon size={20} className="shrink-0 text-sky-700" />
+          <div className="min-w-[200px] flex-1">
+            <p className="text-sm font-semibold text-espresso">
+              {pendingLocal.length} café(s) salvos neste navegador
+            </p>
+            <p className="mt-0.5 text-xs text-mocha">
+              São de antes de o banco ser conectado. Quer enviar para o
+              histórico compartilhado?
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void importLocalEntries()}
+              disabled={importing}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-800 disabled:opacity-60"
+            >
+              {importing ? (
+                <SpinnerIcon size={14} className="animate-spin" />
+              ) : (
+                <DownloadIcon size={14} />
+              )}
+              {importing ? "Importando…" : "Importar"}
+            </button>
+            <button
+              type="button"
+              onClick={discardLocalEntries}
+              disabled={importing}
+              className="rounded-xl border border-espresso/15 px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-white disabled:opacity-60"
+            >
+              Descartar
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -526,7 +611,11 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
                   className="rounded-lg border border-white/20 bg-white/10 px-1.5 py-1 text-xs text-cream outline-none disabled:opacity-40"
                 >
                   {REMIND_OPTIONS.map((minutes) => (
-                    <option key={minutes} value={minutes} className="text-espresso">
+                    <option
+                      key={minutes}
+                      value={minutes}
+                      className="text-espresso"
+                    >
                       {durationLabel(minutes)}
                     </option>
                   ))}
@@ -701,7 +790,9 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  const entry = entries.find((item) => item.id === toast.undoId);
+                  const entry = entries.find(
+                    (item) => item.id === toast.undoId,
+                  );
                   setToast(null);
                   if (entry) void removeEntry(entry);
                 }}

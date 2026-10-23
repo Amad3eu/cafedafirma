@@ -73,6 +73,18 @@ export function saveSettings(settings: Settings): void {
   window.localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
 }
 
+/* ------------------- migração do modo local para o banco ------------------- */
+
+/** Cafés que ficaram salvos apenas neste navegador (modo local anterior). */
+export function readLocalEntries(): CoffeeEntry[] {
+  return readLocal();
+}
+
+/** Apaga o histórico local (depois de importar ou descartar). */
+export function clearLocalEntries(): void {
+  writeLocal([]);
+}
+
 /* --------------------------- servidor / offline --------------------------- */
 
 export async function loadEntries(days = 60): Promise<{
