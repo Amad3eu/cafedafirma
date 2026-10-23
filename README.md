@@ -1,5 +1,9 @@
 # ☕ Café da Firma
 
+[![CI](https://github.com/Amad3eu/cafedafirma/actions/workflows/ci.yml/badge.svg)](https://github.com/Amad3eu/cafedafirma/actions/workflows/ci.yml)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-b4693a)](LICENSE)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-241610)](https://nextjs.org)
+
 Site para registrar as **feitas de café** da empresa: um clique registra o horário, um aviso aparece quando o intervalo passa, e um histórico com gráficos mostra quantos cafés foram feitos por dia e em que horário.
 
 Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para hospedar na **Vercel**, com **extensão para Chrome, Edge e Firefox** incluída.
@@ -24,7 +28,7 @@ Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para h
 - **Exportar CSV** — baixa todo o histórico (`;` como separador, abre direto no Excel em pt-BR).
 - **Funciona offline / sem banco** — se não houver banco configurado, o histórico fica no `localStorage` do navegador e o app avisa isso na tela.
 - **Migração automática** — quando o banco é conectado, o app oferece importar para o histórico compartilhado os cafés que estavam salvos só no navegador (ou descartá-los).
-- **Extensão de navegador** — registra o café sem abrir o site, mostra o último café + contador do dia e dispara notificação quando o intervalo passa.
+- **Extensão de navegador** — registra o café sem abrir o site (clique no ícone, menu de contexto ou `Alt+Shift+C`), mostra o último café + contador do dia, avisa por notificação quando o intervalo passa, lembra o primeiro café do dia e avisa quando um colega registra (ex.: “Amadeu fez café ☕”).
 
 ---
 
@@ -112,6 +116,7 @@ Pronto: o selo no topo do site passa de *"só neste navegador"* para **"comparti
 | `STORAGE_URL` / `STORAGE_TOKEN` | não | integração criada com prefixo `STORAGE` |
 | `<PREFIXO>_URL` / `<PREFIXO>_TOKEN` | não | qualquer prefixo customizado da integração |
 | `CAFE_FILE_STORE=1` | não | força salvar em arquivo mesmo em produção (só use em servidor próprio) |
+| `PRIVACY_CONTACT` | não | e-mail exibido na página `/privacidade` (padrão: `privacidade@cafedafirma.local`) |
 
 > O app detecta automaticamente o par certo: procura primeiro os nomes conhecidos e,
 > se não achar, varre o ambiente atrás de uma variável `*_URL` apontando para o Upstash
@@ -253,3 +258,16 @@ cafe-tracker/
 - Ideias para depois: ranking de quem mais fez café no mês, tipos de café (expresso, coado...), "quem faz o próximo" e relatório mensal por e-mail.
 
 Feito com Next.js 16 ⚡ e uma boa quantidade de café.
+
+---
+
+## 📄 Licença
+
+MIT — veja [LICENSE](LICENSE). Use, modifique e compartilhe à vontade, mantendo o aviso de copyright.
+
+## ✅ Integração contínua
+
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request:
+
+- **Site:** `npm ci` → `eslint` → `next typegen && tsc --noEmit` → `next build`
+- **Extensão:** validação do `manifest.json` (MV3, permissões, ícones, background por navegador), checagem de sintaxe dos scripts e `web-ext lint` da Mozilla (0 erros e 0 avisos obrigatórios)

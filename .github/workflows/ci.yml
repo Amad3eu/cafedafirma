@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Site (lint, tipos e build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tipos
+        # "next typegen" gera os tipos de rotas/layouts que o tsc precisa
+        run: npx next typegen && npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          # sem banco configurado o app cai no modo local (fallback), o build passa
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  extensao:
+    name: Extensão (manifesto e sintaxe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validar manifest (estrutura e chaves obrigatórias)
+        run: |
+          node -e "
+          const fs = require('fs');
+          for (const b of ['chrome', 'firefox']) {
+            const m = JSON.parse(fs.readFileSync('extension/' + b + '/manifest.json', 'utf8'));
+            const erros = [];
+            if (m.manifest_version !== 3) erros.push('manifest_version deve ser 3');
+            if (!m.name) erros.push('name ausente');
+            if (!m.version) erros.push('version ausente');
+            if (!m.action?.default_popup) erros.push('action.default_popup ausente');
+            if (!Array.isArray(m.permissions)) erros.push('permissions ausente');
+            if (!m.icons?.['128']) erros.push('ícone 128 ausente');
+            for (const p of ['storage', 'notifications', 'alarms', 'contextMenus']) {
+              if (!m.permissions.includes(p)) erros.push('permissão ' + p + ' ausente');
+            }
+            if (b === 'chrome' && !m.background?.service_worker) erros.push('service_worker ausente');
+            if (b === 'firefox' && !m.background?.scripts) erros.push('background.scripts ausente');
+            if (b === 'firefox' && !m.browser_specific_settings?.gecko?.id) erros.push('gecko.id ausente');
+            if (erros.length) {
+              console.error('[' + b + '] ' + erros.join('; '));
+              process.exit(1);
+            }
+            console.log('[' + b + '] manifest ok — versão ' + m.version);
+          }"
+
+      - name: Sintaxe dos scripts
+        run: |
+          node -e "
+          const fs = require('fs');
+          for (const b of ['chrome', 'firefox']) {
+            for (const f of ['background.js', 'popup.js', 'options.js']) {
+              new Function(fs.readFileSync('extension/' + b + '/' + f, 'utf8'));
+            }
+            console.log('[' + b + '] JS ok');
+          }"
+
+      - name: Validar extensão com web-ext (Mozilla)
+        run: npx --yes web-ext@latest lint --source-dir extension/firefox --output text

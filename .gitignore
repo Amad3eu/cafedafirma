@@ -43,3 +43,7 @@ next-env.d.ts
 
 # dados locais do app (modo desenvolvimento)
 /data/entries.json
+
+# artefatos de captura para as lojas (não versionar os html/PNG)
+/store/*.png
+/store/*.html

@@ -328,6 +328,15 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     return entries.filter((entry) => dayKey(entry.ts) === key);
   }, [entries, now]);
 
+  const todayByWho = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of todayEntries) {
+      const key = entry.who?.trim() || "sem nome";
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [todayEntries]);
+
   const lastEntry = useMemo(() => {
     if (entries.length === 0) return null;
     return entries.reduce((latest, entry) =>
@@ -409,6 +418,8 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     sinceLast !== null &&
     sinceLast > settings.interval * 60_000;
 
+  const needName = mounted && mode === "shared" && name.trim().length === 0;
+
   const lastWasToday =
     lastEntry && now ? dayKey(lastEntry.ts) === dayKey(now) : false;
 
@@ -487,7 +498,18 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             {lastSync ? `atualizado ${formatTime(lastSync)}` : "atualizar"}
           </button>
 
-          <label className="flex items-center gap-1.5 rounded-full border border-latte bg-card px-2.5 py-1 text-[11px] text-muted">
+          <label
+            className={`flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-[11px] text-muted transition ${
+              needName
+                ? "border-caramel ring-2 ring-caramel/25"
+                : "border-latte"
+            }`}
+            title={
+              needName
+                ? "Defina seu nome para a equipe saber quem fez o café"
+                : undefined
+            }
+          >
             <UserIcon size={13} className="shrink-0" />
             <input
               value={name}
@@ -518,6 +540,18 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               UPSTASH_REDIS_REST_TOKEN
             </code>
             . Passo a passo no README.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Falta definir o nome -------------------------------------- */}
+      {needName ? (
+        <div className="animate-rise mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-caramel/40 bg-caramel/10 px-4 py-2.5">
+          <UserIcon size={18} className="shrink-0 text-caramel-deep" />
+          <p className="min-w-[200px] flex-1 text-xs text-espresso">
+            <strong>Coloque seu nome</strong> no campo ao lado do selo
+            “compartilhado”. É ele que identifica os cafés e avisa os colegas
+            quando você registra.
           </p>
         </div>
       ) : null}
@@ -755,6 +789,24 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               {mounted ? `${todayEntries.length} registro(s)` : "—"}
             </span>
           </div>
+          {mounted && todayByWho.length > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-medium tracking-wide text-muted uppercase">
+                quem fez
+              </span>
+              {todayByWho.map(([who, count]) => (
+                <span
+                  key={who}
+                  className="inline-flex items-center gap-1 rounded-full bg-cream-deep/80 px-2 py-0.5 text-[11px] text-espresso-soft"
+                >
+                  {who}
+                  <span className="font-mono text-[10px] font-semibold text-caramel-deep">
+                    {count}
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : null}
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
@@ -821,7 +873,16 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             </>
           )}
         </p>
-        <p>Feito com Next.js · pronto para a Vercel</p>
+        <p className="flex items-center gap-2">
+          <a
+            href="/privacidade"
+            className="font-medium text-mocha hover:text-caramel-deep hover:underline"
+          >
+            Política de privacidade
+          </a>
+          <span aria-hidden>·</span>
+          <span>Next.js na Vercel</span>
+        </p>
       </footer>
 
       {/* Toast ---------------------------------------------------- */}
