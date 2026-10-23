@@ -1,0 +1,162 @@
+:root {
+  --cream: #fbf6ef;
+  --cream-deep: #f2e6d6;
+  --card: #fffdfa;
+  --espresso: #241610;
+  --mocha: #6b4630;
+  --caramel: #b4693a;
+  --caramel-deep: #96522a;
+  --latte: #e7d6c3;
+  --muted: #8a7768;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 32px 16px 56px;
+  background: var(--cream);
+  color: var(--espresso);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.wrap {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+header img {
+  border-radius: 11px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+header p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+form {
+  background: var(--card);
+  border: 1px solid var(--latte);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+label > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mocha);
+}
+
+input,
+select {
+  border: 1px solid var(--latte);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  background: var(--cream);
+  color: var(--espresso);
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(180, 105, 58, 0.35);
+  outline-offset: 1px;
+}
+
+small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+button,
+.link {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+
+.primary {
+  background: var(--caramel);
+  color: #fff;
+}
+
+.primary:hover {
+  background: var(--caramel-deep);
+}
+
+.ghost {
+  background: var(--cream-deep);
+  color: var(--espresso);
+  display: inline-block;
+}
+
+.ghost:hover {
+  background: var(--latte);
+}
+
+.status {
+  margin: 0;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.status.ok {
+  background: #e8f5ec;
+  color: #1d6b45;
+  border: 1px solid #bfe3cb;
+}
+
+.status.bad {
+  background: #fdeceb;
+  color: #96251e;
+  border: 1px solid #f5c6c2;
+}
+
+.hint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}

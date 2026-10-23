@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Café da Firma</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon-48.png" alt="" width="34" height="34" />
+      <div class="head-text">
+        <h1>Café da Firma</h1>
+        <p id="today-date">—</p>
+      </div>
+      <button id="open-options" class="icon-btn" title="Configurações">
+        ⚙
+      </button>
+    </header>
+
+    <main>
+      <section id="setup" class="setup" hidden>
+        <p>Qual é o endereço do site?</p>
+        <input
+          id="setup-url"
+          type="url"
+          placeholder="https://cafe-da-firma.vercel.app"
+          spellcheck="false"
+        />
+        <button id="setup-save">Salvar endereço</button>
+      </section>
+
+      <div id="content" hidden>
+        <section class="last">
+          <span class="label" id="last-label">Último café</span>
+          <strong id="last-time">--:--</strong>
+          <span class="meta" id="last-meta">carregando…</span>
+        </section>
+
+        <div id="reminder" class="reminder" hidden>
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            style="flex: none; margin-top: 2px"
+          >
+            <path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15L18 15Z" />
+            <path d="M10 20a2.4 2.4 0 0 0 4 0" />
+          </svg>
+          <p id="reminder-text"></p>
+        </div>
+
+        <button id="register" class="primary">☕ Registrar café agora</button>
+        <p id="flash" class="flash" hidden></p>
+
+        <div class="stats">
+          <div class="mini">
+            <span>Hoje</span><strong id="today-count">—</strong>
+          </div>
+          <div class="mini">
+            <span>7 dias</span><strong id="week-count">—</strong>
+          </div>
+          <div class="mini">
+            <span>Média/dia</span><strong id="avg">—</strong>
+          </div>
+        </div>
+
+        <ul id="list" class="list"></ul>
+
+        <div class="footer">
+          <a id="open-site" href="#" target="_blank" rel="noreferrer"
+            >Abrir o site ↗</a
+          >
+          <button id="refresh" class="link-btn">Atualizar</button>
+        </div>
+      </div>
+
+      <p id="error" class="error" hidden></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "cafe-da-firma",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "make:icons": "node scripts/make-icons.cjs",
+    "seed:demo": "node scripts/seed-demo.cjs",
+    "build:ext": "bash scripts/build-ext.sh"
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "description": "Registro das feitas de café da empresa, com aviso, histórico e gráficos."
+}
