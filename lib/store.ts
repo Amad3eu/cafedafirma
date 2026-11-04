@@ -245,14 +245,19 @@ export async function listEntriesAndCups(
   const kind = storageKind();
 
   if (kind === "redis") {
-    const [rawEntries, rawCups] = await redisPipeline<[string[], string[]]>([
-      ["ZRANGEBYSCORE", BREWS.redisKey, sinceTs, "+inf"],
-      ["ZRANGEBYSCORE", CUPS.redisKey, sinceTs, "+inf"],
-    ]);
-    return {
-      entries: parseMembers<CoffeeEntry>(rawEntries),
-      cups: parseMembers<CupEntry>(rawCups),
-    };
+    try {
+      const [rawEntries, rawCups] = await redisPipeline<[string[], string[]]>([
+        ["ZRANGEBYSCORE", BREWS.redisKey, sinceTs, "+inf"],
+        ["ZRANGEBYSCORE", CUPS.redisKey, sinceTs, "+inf"],
+      ]);
+      return {
+        entries: parseMembers<CoffeeEntry>(rawEntries),
+        cups: parseMembers<CupEntry>(rawCups),
+      };
+    } catch (error) {
+      // provedor sem /pipeline (ou resposta inesperada): duas leituras simples
+      console.warn("[store] pipeline falhou, lendo em dois comandos:", error);
+    }
   }
 
   const [entries, cups] = await Promise.all([listEntries(sinceTs), listCups(sinceTs)]);
