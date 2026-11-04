@@ -309,6 +309,29 @@ O nome é o que permite o aviso "**Amadeu fez café**" e a lista "quem fez". Par
 - **Site:** o campo ao lado do selo fica destacado (anel laranja) e aparece o aviso **"Coloque seu nome"**. O registro continua permitido, mas o café não será identificado na atividade da equipe.
 - O nome fica salvo por pessoa (storage.local da extensão e localStorage do site).
 
+### Design do popup (v1.8.1)
+
+O Chrome limita o popup a **600 px de altura**; acima disso aparece uma rolagem
+interna. A 1.8.1 reorganizou o popup para o estado comum caber nesse limite:
+
+- **Bloco escuro:** hora, "há quanto tempo · quem · ★ nota" numa linha só e a
+  sugestão de rodízio como pílula ("Próximo café: Caio").
+- **Dois botões, uma hierarquia:** "Registrar café agora" (cheio) e "Tomei um
+  café" (contorno azul), mesma largura e raio.
+- **Equipe hoje:** uma linha por pessoa com `fez · tomou` (ícones de xícara e
+  caneca), 4 linhas e "+ N pessoas".
+- **Cafés de hoje:** 3 itens com xícaras e nota por feita; "ver todos (N)".
+- **Modo escuro** automático (`prefers-color-scheme`); todas as cores são
+  variáveis em `popup.css`, e o texto sobre o topo e o bloco escuro usa
+  `--on-dark`, que não muda de tema.
+- **Esqueleto** nas listas enquanto os dados não chegam.
+
+| Estado | Altura |
+| --- | --- |
+| normal, sem lembrete | ≈ 600 px |
+| normal, com lembrete ativo | ≈ 655 px |
+| com "como estava o café?" | ≈ 740 px |
+
 ### Design do popup (v1.6)
 
 Sistema de espaçamento em múltiplos de 4 px (`4 / 8 / 12 / 16 / 20 / 24`), raios padronizados
@@ -368,6 +391,21 @@ extensão deixa o servidor resolver (`POST /api/cups` sem `brewId`).
 - Site 1.7 com extensão antiga: continua funcionando; a extensão só não vê as xícaras.
 - Modo local (sem Redis): xícaras ficam no navegador e são importadas junto com
   as feitas quando o banco é conectado (mantendo o vínculo).
+
+---
+
+## 12. Rodízio e frescor (v1.8)
+
+Duas leituras novas, calculadas em `lib/stats.ts` a partir das mesmas feitas e
+xícaras dos últimos 30 dias:
+
+| Cartão | Conta | Onde aparece |
+| --- | --- | --- |
+| **Quem faz o próximo?** | `dívida = xícaras tomadas − feitas × (xícaras por feita no período)`. Maior dívida primeiro; empate para quem fez café há mais tempo (nunca ter feito conta como "há mais tempo"). | cartão no site, linha abaixo de "Registrar café agora" e `Próximo café: …` no popup |
+| **Café fresco vale mais?** | nota média das xícaras por idade do café (`xícara.ts − feita.ts`) em 4 faixas; a conclusão aponta a primeira faixa com ≥ 3 notas cuja média cai ≥ 0,5 em relação à faixa fresca | cartão no site e "Café atual tem 1h40 · nessa idade a nota costuma ser 2,9" em "Tomei um café" |
+
+Nomes são comparados sem caixa e sem espaços nas pontas ("Ana" e "ana " são a
+mesma pessoa). Quem nunca registrou xícara nem feita com nome não entra.
 
 ### Repositório
 

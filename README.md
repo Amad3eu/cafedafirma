@@ -39,6 +39,8 @@ Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para h
 - **Meta diária** — sem meta ou de 2 a 8 xícaras, com medidor e aviso discreto ao passar.
 - **Ranking da firma** — quem faz o melhor café (média das notas, mínimo de 3 avaliações), quem mais fez café nos últimos 30 dias e a nota por período do dia (manhã, almoço, tarde, noite).
 - **Feitas × xícaras por dia** — gráfico de barras agrupadas com legenda, em paleta validada para daltonismo.
+- **Quem faz o próximo?** — rodízio justo: quem tomou mais xícaras do que as próprias feitas renderam vai para a frente da fila ("É a vez de Caio: tomou 9, fez 1"). Sugestão também abaixo do botão de registrar e no popup da extensão.
+- **Café fresco vale mais?** — nota média por idade do café na hora da xícara, com a conclusão em texto ("Depois de 1 h a nota cai de 4,3 para 2,9") e a nota típica do café que está no bule agora.
 - **Na extensão** — botão "Tomei um café" com estrelas no popup, atalho `Alt+Shift+T`, item no menu do botão direito e notificação com botões 👍/👎 para avaliar sem abrir nada.
 - **CSV** inclui as xícaras e as notas (coluna `tipo`: `feita` ou `xicara`).
 
@@ -175,7 +177,8 @@ npm run build:ext
 
 ### O que a extensão faz
 
-- **Popup**: último café + "há quanto tempo" + nota da feita, aviso laranja quando passou do intervalo, botão **Registrar café agora**, botão **Tomei um café** (com as estrelas "como estava o café?"), métricas de feitas / xícaras / você / nota, quem fez e quem tomou hoje, lista dos cafés do dia com xícaras e nota por feita, e atalho para o site e para o repositório.
+- **Popup**: último café + "há quanto tempo" + nota da feita + sugestão de quem faz o próximo, aviso laranja quando passou do intervalo, botão **Registrar café agora**, botão **Tomei um café** (com as estrelas "como estava o café?"), métricas de feitas / xícaras / você / nota, quem fez e quem tomou hoje, lista dos cafés do dia com xícaras e nota por feita, e atalho para o site e para o repositório.
+- **Modo escuro** automático no popup e nas opções, seguindo o tema do sistema.
 - **Badge no ícone**: número de feitas de hoje.
 - **Notificações**: intervalo (manhã/tarde), primeiro café do dia, "colega fez café" e, ao registrar uma xícara pelo atalho ou menu, "como estava o café?" com botões 👍 (nota 4) / 👎 (nota 2).
 - **Atalhos**: `Alt+Shift+C` registra a feita, `Alt+Shift+T` registra que você tomou um café, `Alt+Shift+P` abre o painel.

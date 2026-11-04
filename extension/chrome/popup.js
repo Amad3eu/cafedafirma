@@ -129,6 +129,48 @@ function statsByBrew(cups) {
   return map;
 }
 
+/**
+ * Rodízio justo (mesma conta do site, lib/stats.ts): quem tomou mais xícaras
+ * do que as próprias feitas renderam vai para a frente da fila.
+ */
+function nextBrewer(entries, cups) {
+  if (entries.length === 0) return null;
+  const ids = new Set(entries.map((entry) => entry.id));
+  const linked = cups.filter((cup) => cup.brewId && ids.has(cup.brewId)).length;
+  const perBrew = Math.max(1, linked / entries.length);
+
+  const people = new Map();
+  const slot = (who) => {
+    const key = String(who || "").trim().toLowerCase();
+    if (!key) return null;
+    if (!people.has(key)) {
+      people.set(key, { who: String(who).trim(), brews: 0, cups: 0, lastBrewTs: null });
+    }
+    return people.get(key);
+  };
+  for (const entry of entries) {
+    const item = slot(entry.who);
+    if (!item) continue;
+    item.brews += 1;
+    if (item.lastBrewTs === null || entry.ts > item.lastBrewTs) item.lastBrewTs = entry.ts;
+  }
+  for (const cup of cups) {
+    const item = slot(cup.who);
+    if (item) item.cups += 1;
+  }
+  const list = [...people.values()].map((item) => ({
+    ...item,
+    debt: item.cups - item.brews * perBrew,
+  }));
+  list.sort(
+    (a, b) =>
+      b.debt - a.debt ||
+      (a.lastBrewTs ?? -Infinity) - (b.lastBrewTs ?? -Infinity) ||
+      a.who.localeCompare(b.who),
+  );
+  return list.find((item) => item.debt > 0.5) || null;
+}
+
 function showError(message) {
   const box = el("error");
   box.textContent = message;
@@ -144,36 +186,75 @@ function flash(message) {
   }, 4000);
 }
 
-function chip(label, count, title) {
+const ICON_CUP =
+  '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5Z"/><path d="M16 11h2.2a2.8 2.8 0 0 1 0 5.6H16"/></svg>';
+const ICON_MUG =
+  '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h11v8.5A3.5 3.5 0 0 1 12.5 20h-4A3.5 3.5 0 0 1 5 16.5V8Z"/><path d="M16 10h1.8a2.6 2.6 0 0 1 0 5.2H16"/></svg>';
+
+const TEAM_ROWS = 4;
+const LIST_ROWS = 3;
+
+function numberCell(kind, value) {
   const span = document.createElement("span");
-  span.className = "chip";
-  if (title) span.title = title;
-  span.append(document.createTextNode(label));
-  const num = document.createElement("b");
-  num.textContent = String(count);
-  span.append(num);
+  span.className = `n n--${kind}${value === 0 ? " zero" : ""}`;
+  const icon = document.createElement("span");
+  icon.innerHTML = kind === "brews" ? ICON_CUP : ICON_MUG;
+  span.append(icon.firstChild, document.createTextNode(String(value)));
   return span;
 }
 
-function renderChips(container, items, emptyText) {
-  container.textContent = "";
-  if (items.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "chip chip--empty";
-    empty.textContent = emptyText;
-    container.append(empty);
+/** Equipe hoje: uma linha por pessoa com feitas e xícaras. */
+function renderTeam(brews, cups) {
+  const people = new Map();
+  const slot = (who) => {
+    const key = String(who || "").trim() || "sem nome";
+    if (!people.has(key)) people.set(key, { who: key, brews: 0, cups: 0 });
+    return people.get(key);
+  };
+  for (const entry of brews) slot(entry.who).brews += 1;
+  for (const cup of cups) slot(cup.who).cups += 1;
+
+  const rows = [...people.values()].sort(
+    (a, b) => b.brews - a.brews || b.cups - a.cups || a.who.localeCompare(b.who),
+  );
+  const box = el("team-list");
+  box.textContent = "";
+  el("team-cols").hidden = rows.length === 0;
+  if (rows.length === 0) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "ninguém registrou café hoje ainda";
+    box.append(li);
     return;
   }
-  for (const [who, count] of items) container.append(chip(who, count));
+  for (const row of rows.slice(0, TEAM_ROWS)) {
+    const li = document.createElement("li");
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = row.who;
+    li.append(who, numberCell("brews", row.brews), numberCell("cups", row.cups));
+    li.title = `${row.who}: fez ${row.brews}, tomou ${row.cups}`;
+    box.append(li);
+  }
+  if (rows.length > TEAM_ROWS) {
+    const li = document.createElement("li");
+    li.className = "more";
+    const rest = rows.length - TEAM_ROWS;
+    li.textContent = `+ ${rest} ${rest === 1 ? "pessoa" : "pessoas"} — veja no site`;
+    box.append(li);
+  }
 }
 
-function countBy(items) {
-  const map = new Map();
-  for (const item of items) {
-    const key = item.who || "sem nome";
-    map.set(key, (map.get(key) || 0) + 1);
+function skeletonRows(box, count) {
+  box.textContent = "";
+  for (let i = 0; i < count; i++) {
+    const li = document.createElement("li");
+    li.className = "skeleton-row";
+    const bar = document.createElement("span");
+    bar.className = "skeleton";
+    li.append(bar);
+    box.append(li);
   }
-  return [...map.entries()].sort((a, b) => b[1] - a[1]);
 }
 
 let currentConfig = { ...DEFAULTS };
@@ -210,27 +291,36 @@ function render(entries, cups, storage) {
     ? `${rated.length} avaliação(ões) hoje`
     : "sem avaliações hoje";
 
-  // último café
-  const lastRating = el("last-rating");
+  // último café (nota da feita na mesma linha)
   if (last) {
     const wasToday = sameDay(last.ts, now);
     el("last-label").textContent = wasToday ? "Último café de hoje" : "Último café registrado";
     el("last-time").textContent = timeLabel(last.ts);
-    el("last-meta").textContent = `${relative(last.ts)}${last.who ? ` · ${last.who}` : ""}`;
     const stats = brewStats.get(last.id);
-    if (stats && stats.cups > 0) {
-      lastRating.textContent =
-        `${stats.cups} ${stats.cups === 1 ? "xícara" : "xícaras"}` +
-        (stats.avg !== null ? ` · ★ ${ratingText(stats.avg)} (${stats.ratings})` : " · sem nota ainda");
-      lastRating.hidden = false;
-    } else {
-      lastRating.hidden = true;
-    }
+    const parts = [relative(last.ts)];
+    if (last.who) parts.push(last.who);
+    if (stats && stats.avg !== null) parts.push(`★ ${ratingText(stats.avg)} (${stats.ratings})`);
+    else if (stats && stats.cups > 0) parts.push(`${stats.cups} xíc.`);
+    el("last-meta").textContent = parts.join(" · ");
   } else {
     el("last-label").textContent = "Último café";
     el("last-time").textContent = "--:--";
     el("last-meta").textContent = "nenhum registro ainda";
-    lastRating.hidden = true;
+  }
+
+  // sugestão de rodízio (últimos 30 dias) como pílula no bloco escuro
+  const next = hasCups ? nextBrewer(entries, cupList) : null;
+  const pill = el("next-brewer");
+  if (next) {
+    pill.textContent = "";
+    pill.append(document.createTextNode("Próximo café: "));
+    const who = document.createElement("strong");
+    who.textContent = sameName(next.who, currentConfig.name) ? "você" : next.who;
+    pill.append(who);
+    pill.title = `${next.who} tomou ${next.cups} e fez ${next.brews} nos últimos 30 dias`;
+    el("hero-foot").hidden = false;
+  } else {
+    el("hero-foot").hidden = true;
   }
 
   // aviso de "hora de cadastrar a feita"
@@ -246,32 +336,29 @@ function render(entries, cups, storage) {
     reminder.hidden = true;
   }
 
-  // consumo
-  el("cup-row").hidden = !hasCups;
-  if (hasCups) {
-    const goal = currentConfig.cupGoal;
-    const n = myCups.length;
-    let meta = `você: ${n} ${n === 1 ? "xícara" : "xícaras"} hoje`;
-    if (goal > 0) meta += ` · meta ${goal}`;
-    if (goal > 0 && n > goal) meta += " · acima da meta";
-    el("cup-meta").textContent = meta;
-    el("cup-meta").classList.toggle("cup-meta--over", goal > 0 && n > goal);
-  }
+  // consumo: o botão só existe se o site sabe de xícaras; "você" avisa a meta
+  el("drink").hidden = !hasCups;
+  const goal = currentConfig.cupGoal;
+  const over = hasCups && goal > 0 && myCups.length > goal;
+  el("my-cups").parentElement.classList.toggle("stat--over", over);
+  el("my-cups").title = over
+    ? `Acima da meta de ${goal} xícaras`
+    : goal > 0
+      ? `Meta: ${goal} xícaras por dia`
+      : "";
 
   // equipe hoje
-  renderChips(el("team-list"), countBy(today), "ninguém registrou café hoje ainda");
-  const drinkers = countBy(todayCups);
-  el("drinkers-title").hidden = !hasCups || drinkers.length === 0;
-  el("drinkers-list").hidden = !hasCups || drinkers.length === 0;
-  if (hasCups) renderChips(el("drinkers-list"), drinkers, "");
+  renderTeam(today, hasCups ? todayCups : []);
 
-  // lista de hoje
+  // lista de hoje: 3 visíveis, o resto atrás de "ver todos"
   const list = el("list");
   list.textContent = "";
-  const recent = [...today].reverse().slice(0, 6);
+  list.classList.remove("list--all");
+  const recent = [...today].reverse();
   el("today-card").hidden = recent.length === 0;
-  for (const entry of recent) {
+  recent.forEach((entry, index) => {
     const li = document.createElement("li");
+    if (index >= LIST_ROWS) li.className = "extra";
     const time = document.createElement("span");
     time.className = "time";
     time.textContent = timeLabel(entry.ts);
@@ -289,7 +376,10 @@ function render(entries, cups, storage) {
       li.append(badge);
     }
     list.appendChild(li);
-  }
+  });
+  const more = el("list-more");
+  more.hidden = recent.length <= LIST_ROWS;
+  more.textContent = `ver todos (${recent.length})`;
 
   renderRateCard(cupList, entries);
 
@@ -324,7 +414,9 @@ function renderRateCard(cups, entries) {
 function paintStars(value) {
   for (const button of el("stars").querySelectorAll("button")) {
     const rating = Number(button.dataset.rating);
-    button.classList.toggle("on", rating <= value);
+    const on = rating <= value;
+    button.classList.toggle("on", on);
+    button.textContent = on ? "★" : "☆";
     button.setAttribute("aria-checked", rating === value ? "true" : "false");
   }
   el("stars-label").textContent = value ? RATING_LABELS[value] : "toque numa estrela";
@@ -370,6 +462,15 @@ async function load() {
   }
   el("grant").hidden = true;
   el("content").hidden = false;
+
+  // esqueleto: mantém a altura enquanto os dados não chegam
+  if (currentEntries.length === 0) {
+    skeletonRows(el("team-list"), 3);
+    skeletonRows(el("list"), 3);
+    el("team-cols").hidden = true;
+    el("today-card").hidden = false;
+    el("list-more").hidden = true;
+  }
 
   try {
     const { entries, cups, storage } = await fetchHistory(config.baseUrl);
@@ -495,6 +596,12 @@ el("stars").addEventListener("click", (event) => {
   if (button) void rate(Number(button.dataset.rating));
 });
 el("refresh").addEventListener("click", () => load());
+el("list-more").addEventListener("click", () => {
+  const list = el("list");
+  const all = list.classList.toggle("list--all");
+  const total = list.querySelectorAll("li").length;
+  el("list-more").textContent = all ? "ver menos" : `ver todos (${total})`;
+});
 el("open-options").addEventListener("click", () => {
   if (api.runtime.openOptionsPage) api.runtime.openOptionsPage();
 });
