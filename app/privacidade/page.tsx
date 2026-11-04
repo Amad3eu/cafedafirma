@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { REPO_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Política de privacidade · Café da Firma",
@@ -32,7 +33,7 @@ export default function PrivacidadePage() {
       </h1>
       <p className="mt-1 text-xs text-muted">
         Café da Firma — site e extensão para Chrome, Edge e Firefox · última
-        atualização: 23/10/2026
+        atualização: 30/10/2026
       </p>
 
       <section className="mt-8 space-y-4 text-sm leading-relaxed text-espresso-soft">
@@ -51,8 +52,15 @@ export default function PrivacidadePage() {
         </h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Registro de café:</strong> data e hora do registro e,
-            opcionalmente, o nome que você digitar como identificação.
+            <strong>Registro de café (feita):</strong> data e hora do registro
+            e, opcionalmente, o nome que você digitar como identificação.
+          </li>
+          <li>
+            <strong>Xícara e avaliação:</strong> data e hora em que você
+            registrou que tomou um café, o nome informado, a feita à qual a
+            xícara foi associada e, se você quiser, uma nota de 1 a 5 para o
+            café. Tudo é opcional e pode ser apagado por você a qualquer
+            momento.
           </li>
           <li>
             <strong>Preferências da extensão:</strong> endereço do site, seu
@@ -88,9 +96,10 @@ export default function PrivacidadePage() {
         </h2>
         <p>
           Exclusivamente para o funcionamento do recurso: mostrar o último café,
-          o contador do dia, o histórico, os gráficos e enviar lembretes locais.
-          Não há uso para publicidade, perfilamento, treinamento de modelos ou
-          qualquer finalidade secundária.
+          os contadores do dia (feitas e xícaras), a nota média do café, os
+          rankings da equipe, o histórico, os gráficos e enviar lembretes
+          locais. Não há uso para publicidade, perfilamento, treinamento de
+          modelos ou qualquer finalidade secundária.
         </p>
 
         <h2 className="pt-2 text-base font-semibold text-espresso">
@@ -162,7 +171,24 @@ export default function PrivacidadePage() {
         </p>
 
         <h2 className="pt-2 text-base font-semibold text-espresso">
-          9. Alterações e contato
+          9. Código aberto
+        </h2>
+        <p>
+          O código do site e da extensão é público, sob licença MIT, em{" "}
+          <a
+            className="font-medium text-caramel-deep hover:underline"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {REPO_URL.replace("https://", "")}
+          </a>
+          . Qualquer pessoa pode conferir exatamente o que é enviado ao servidor
+          e o que fica no navegador.
+        </p>
+
+        <h2 className="pt-2 text-base font-semibold text-espresso">
+          10. Alterações e contato
         </h2>
         <p>
           Mudanças nesta política serão publicadas nesta mesma página, com a
@@ -184,9 +210,10 @@ export default function PrivacidadePage() {
         <p>
           Café da Firma does not collect, sell, or share personal data, and uses
           no tracking, ads, or third-party analytics. The extension stores your
-          preferences (site URL, name, reminder intervals) in{" "}
+          preferences (site URL, name, reminder intervals, daily cup goal) in{" "}
           <code>storage.local</code> and sends only the coffee records you create
-          to the site address you configure. Permissions are used solely for:
+          (brews, cups and optional 1–5 ratings) to the site address you
+          configure. The source code is public at {REPO_URL}. Permissions are used solely for:
           storing preferences (<code>storage</code>), local reminders (
           <code>notifications</code>), periodic checks (<code>alarms</code>), the
           right-click menu (<code>contextMenus</code>), and HTTP requests to the

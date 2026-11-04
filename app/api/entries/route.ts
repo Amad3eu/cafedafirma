@@ -1,46 +1,51 @@
-import { NextResponse } from "next/server";
-import { addEntry, listEntries, removeEntry, storageKind } from "@/lib/store";
+import {
+  addEntry,
+  listEntries,
+  listEntriesAndCups,
+  removeEntry,
+  storageKind,
+} from "@/lib/store";
+import {
+  clampTimestamp,
+  cleanText,
+  json,
+  parseDays,
+  preflight,
+  readJson,
+} from "@/lib/api";
+import { DAY } from "@/lib/constants";
 import type { CoffeeEntry, EntriesResponse } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MAX_PAST_DAYS = 60;
-const MAX_DAYS_QUERY = 400;
-
-function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Cache-Control": "no-store",
-  };
-}
-
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status, headers: corsHeaders() });
-}
-
 export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders() });
+  return preflight();
 }
 
-/** GET /api/entries?days=60 -> histórico dos últimos N dias */
+/**
+ * GET /api/entries?days=60[&cups=1]
+ * Histórico de feitas dos últimos N dias. Com `cups=1` inclui também as
+ * xícaras do período, na mesma resposta (uma única leitura no banco).
+ */
 export async function GET(request: Request) {
   const kind = storageKind();
   const url = new URL(request.url);
-  const daysParam = Number(url.searchParams.get("days") ?? 60);
-  const days = Number.isFinite(daysParam)
-    ? Math.min(Math.max(Math.trunc(daysParam), 1), MAX_DAYS_QUERY)
-    : 60;
+  const days = parseDays(url);
+  const withCups = url.searchParams.get("cups") === "1";
 
   if (kind === "none") {
-    const body: EntriesResponse = { storage: "none", entries: [] };
+    const body: EntriesResponse = { storage: "none", entries: [], ...(withCups ? { cups: [] } : {}) };
     return json(body);
   }
 
   try {
-    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const since = Date.now() - days * DAY;
+    if (withCups) {
+      const { entries, cups } = await listEntriesAndCups(since);
+      const body: EntriesResponse = { storage: kind, entries, cups };
+      return json(body);
+    }
     const entries = await listEntries(since);
     const body: EntriesResponse = { storage: kind, entries };
     return json(body);
@@ -57,28 +62,13 @@ export async function POST(request: Request) {
     return json({ storage: "none", entry: null }, 200);
   }
 
-  let payload: { ts?: unknown; who?: unknown; note?: unknown } = {};
-  try {
-    payload = await request.json();
-  } catch {
-    payload = {};
-  }
-
-  const now = Date.now();
-  const tsRaw = typeof payload.ts === "number" ? payload.ts : now;
-  const minTs = now - MAX_PAST_DAYS * 24 * 60 * 60 * 1000;
-  const ts = Math.min(Math.max(Math.trunc(tsRaw), minTs), now + 60_000);
-
-  const who =
-    typeof payload.who === "string" ? payload.who.trim().slice(0, 60) : undefined;
-  const note =
-    typeof payload.note === "string"
-      ? payload.note.trim().slice(0, 140)
-      : undefined;
+  const payload = await readJson<{ ts?: unknown; who?: unknown; note?: unknown }>(request);
+  const who = cleanText(payload.who, 60);
+  const note = cleanText(payload.note, 140);
 
   const entry: CoffeeEntry = {
     id: crypto.randomUUID(),
-    ts,
+    ts: clampTimestamp(payload.ts),
     ...(who ? { who } : {}),
     ...(note ? { note } : {}),
   };

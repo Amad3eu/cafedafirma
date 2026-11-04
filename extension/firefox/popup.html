@@ -42,7 +42,7 @@
           <div>
             <h2 class="panel-title">Como você quer aparecer?</h2>
             <p class="panel-hint">
-              Seu nome identifica os cafés e avisa os colegas.
+              Seu nome identifica os cafés, conta suas xícaras e avisa os colegas.
             </p>
           </div>
         </div>
@@ -64,6 +64,7 @@
             <strong id="last-time">--:--</strong>
             <span class="hero-meta" id="last-meta">carregando…</span>
           </div>
+          <p class="hero-rating" id="last-rating" hidden></p>
         </section>
 
         <div id="reminder" class="reminder" hidden>
@@ -85,24 +86,56 @@
 
         <p id="flash" class="flash" hidden></p>
 
+        <!-- consumo: tomei um café -->
+        <div class="cup-row" id="cup-row">
+          <button id="drink" class="drink" title="Conta uma xícara para você e deixa avaliar o café">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 8h11v8.5A3.5 3.5 0 0 1 12.5 20h-4A3.5 3.5 0 0 1 5 16.5V8Z" />
+              <path d="M16 10h1.8a2.6 2.6 0 0 1 0 5.2H16" />
+              <path d="M8.5 5c0-.9.8-1.1.8-2M12 5c0-.9.8-1.1.8-2" />
+            </svg>
+            Tomei um café
+          </button>
+          <span class="cup-meta" id="cup-meta">—</span>
+        </div>
+
+        <section id="rate-card" class="card card--rate" hidden>
+          <h2 class="card-title">Como estava o café? <span id="rate-brew"></span></h2>
+          <div class="stars" id="stars" role="radiogroup" aria-label="Nota do café">
+            <button type="button" data-rating="1" title="1 — ruim" aria-label="1 — ruim">★</button>
+            <button type="button" data-rating="2" title="2 — fraco" aria-label="2 — fraco">★</button>
+            <button type="button" data-rating="3" title="3 — ok" aria-label="3 — ok">★</button>
+            <button type="button" data-rating="4" title="4 — bom" aria-label="4 — bom">★</button>
+            <button type="button" data-rating="5" title="5 — ótimo" aria-label="5 — ótimo">★</button>
+            <span class="stars-label" id="stars-label"></span>
+          </div>
+        </section>
+
         <section class="card card--stats">
           <div class="stat">
-            <span class="stat-label">Hoje</span>
+            <span class="stat-label">Feitas</span>
             <strong id="today-count">—</strong>
           </div>
           <div class="stat">
-            <span class="stat-label">7 dias</span>
-            <strong id="week-count">—</strong>
+            <span class="stat-label">Xícaras</span>
+            <strong id="cups-count">—</strong>
           </div>
           <div class="stat">
-            <span class="stat-label">Média/dia</span>
-            <strong id="avg">—</strong>
+            <span class="stat-label">Você</span>
+            <strong id="my-cups">—</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Nota</span>
+            <strong id="today-rating">—</strong>
           </div>
         </section>
 
         <section class="card" id="team-card">
           <h2 class="card-title">Equipe hoje</h2>
+          <p class="sub-title">quem fez</p>
           <div id="team-list" class="chips"></div>
+          <p class="sub-title" id="drinkers-title" hidden>quem tomou</p>
+          <div id="drinkers-list" class="chips chips--cups"></div>
         </section>
 
         <section class="card" id="today-card">
@@ -117,7 +150,10 @@
               <path d="M8 16 16 8M9 8h7v7" />
             </svg>
           </a>
-          <button id="refresh" class="link-btn">Atualizar</button>
+          <span class="footer-right">
+            <a id="open-repo" class="muted-link" href="https://github.com/Amad3eu/cafedafirma" target="_blank" rel="noreferrer" title="Código aberto no GitHub">GitHub</a>
+            <button id="refresh" class="link-btn">Atualizar</button>
+          </span>
         </div>
       </div>
 

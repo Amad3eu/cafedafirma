@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   site:
-    name: Site (lint, tipos e build)
+    name: Site (lint, tipos, testes e build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
       - name: Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Instalar dependências
@@ -31,7 +31,11 @@ jobs:
 
       - name: Tipos
         # "next typegen" gera os tipos de rotas/layouts que o tsc precisa
-        run: npx next typegen && npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Testes
+        # lib/format, lib/stats, helpers da API e consistência da extensão
+        run: npm test
 
       - name: Build
         run: npm run build
@@ -40,7 +44,7 @@ jobs:
           NEXT_TELEMETRY_DISABLED: "1"
 
   extensao:
-    name: Extensão (manifesto e sintaxe)
+    name: Extensão (manifesto, sintaxe e web-ext)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,18 +52,20 @@ jobs:
       - name: Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Validar manifest (estrutura e chaves obrigatórias)
         run: |
           node -e "
           const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           for (const b of ['chrome', 'firefox']) {
             const m = JSON.parse(fs.readFileSync('extension/' + b + '/manifest.json', 'utf8'));
             const erros = [];
             if (m.manifest_version !== 3) erros.push('manifest_version deve ser 3');
             if (!m.name) erros.push('name ausente');
             if (!m.version) erros.push('version ausente');
+            if (m.version !== pkg.version) erros.push('version (' + m.version + ') difere do package.json (' + pkg.version + ')');
             if (!m.action?.default_popup) erros.push('action.default_popup ausente');
             if (!Array.isArray(m.permissions)) erros.push('permissions ausente');
             if (!m.icons?.['128']) erros.push('ícone 128 ausente');
@@ -75,6 +81,13 @@ jobs:
             }
             console.log('[' + b + '] manifest ok — versão ' + m.version);
           }"
+
+      - name: Firefox espelha Chrome (só o manifest pode diferir)
+        run: |
+          for f in background.js popup.html popup.css popup.js options.html options.css options.js; do
+            cmp -s "extension/chrome/$f" "extension/firefox/$f" || { echo "extension/firefox/$f divergiu de chrome — rode npm run build:ext"; exit 1; }
+          done
+          echo "arquivos compartilhados sincronizados"
 
       - name: Sintaxe dos scripts
         run: |

@@ -106,20 +106,20 @@ export function redisConfigured(): boolean {
   return redisConfig() !== null;
 }
 
-/** Executa um comando Redis e retorna o campo `result`. */
-export async function redisCommand<T = unknown>(
-  command: (string | number)[],
-): Promise<T> {
+type RedisCommand = (string | number)[];
+type RedisReply<T> = { result?: T; error?: string };
+
+async function post<T>(path: string, body: unknown): Promise<T> {
   const config = redisConfig();
   if (!config) throw new Error("Redis não configurado");
 
-  const res = await fetch(config.url, {
+  const res = await fetch(`${config.url}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(command),
+    body: JSON.stringify(body),
     cache: "no-store",
   });
 
@@ -128,7 +128,30 @@ export async function redisCommand<T = unknown>(
     throw new Error(`Redis ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  const data = (await res.json()) as { result?: T; error?: string };
+  return (await res.json()) as T;
+}
+
+/** Executa um comando Redis e retorna o campo `result`. */
+export async function redisCommand<T = unknown>(command: RedisCommand): Promise<T> {
+  const data = await post<RedisReply<T>>("", command);
   if (data.error) throw new Error(`Redis: ${data.error}`);
   return data.result as T;
+}
+
+/**
+ * Executa vários comandos em uma única requisição HTTP (endpoint `/pipeline`
+ * do Upstash). Os resultados vêm na mesma ordem dos comandos. Usado para ler
+ * feitas e xícaras de uma vez só, sem dobrar a latência.
+ */
+export async function redisPipeline<T extends unknown[]>(
+  commands: RedisCommand[],
+): Promise<T> {
+  if (commands.length === 0) return [] as unknown as T;
+  const replies = await post<RedisReply<unknown>[]>("/pipeline", commands);
+  return replies.map((reply, index) => {
+    if (reply?.error) {
+      throw new Error(`Redis (${commands[index][0]}): ${reply.error}`);
+    }
+    return reply?.result;
+  }) as T;
 }

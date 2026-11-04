@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CoffeeEntry, StorageKind } from "@/lib/types";
-import {
-  DAY,
-} from "@/lib/constants";
+import type { CoffeeEntry, CupEntry, Rating, StorageKind } from "@/lib/types";
+import { DAY, REPO_URL } from "@/lib/constants";
 import {
   WEEKDAYS,
   dayKey,
@@ -18,15 +16,32 @@ import {
   todayKey,
 } from "@/lib/format";
 import {
+  activeBrewAt,
+  averageRating,
+  baristaRanking,
+  countBy,
+  itemsOf,
+  itemsOfDay,
+  itemsSince,
+  peakHour as computePeakHour,
+  ratingHistogram,
+  ratingsByPeriod,
+  statsByBrew,
+} from "@/lib/stats";
+import {
   type ClientMode,
   type Settings,
   DEFAULT_SETTINGS,
   clearLocalEntries,
+  deleteCup,
   deleteEntry,
   loadEntries,
   loadName,
   loadSettings,
+  rateCup,
+  readLocalCupEntries,
   readLocalEntries,
+  registerCup,
   registerEntry,
   saveName,
   saveSettings,
@@ -37,6 +52,8 @@ import HourChart, { type HourPoint } from "./HourChart";
 import TodayList from "./TodayList";
 import HistoryList, { type DayGroup } from "./HistoryList";
 import ExtensionCard from "./ExtensionCard";
+import CupsCard from "./CupsCard";
+import RankingCard from "./RankingCard";
 import {
   BellIcon,
   ClockIcon,
@@ -44,6 +61,7 @@ import {
   CupIcon,
   DeviceIcon,
   DownloadIcon,
+  GitHubIcon,
   SpinnerIcon,
   UserIcon,
   WarningIcon,
@@ -52,37 +70,56 @@ import {
 
 const CHART_DAYS = 14;
 const HISTORY_DAYS = 60;
+const RANKING_DAYS = 30;
 const REMIND_OPTIONS = [60, 120, 180, 240, 300, 360];
+/** por quanto tempo a pergunta "como estava o café?" fica na tela */
+const RATE_PROMPT_MS = 30 * 60_000;
 
-type Toast = { kind: "success" | "error"; text: string; undoId?: string };
+type Toast = {
+  kind: "success" | "error";
+  text: string;
+  undo?: () => void;
+};
 
-export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
+export default function CoffeeApp({
+  siteUrl,
+  version,
+}: {
+  siteUrl: string;
+  version: string;
+}) {
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(0);
   const [entries, setEntries] = useState<CoffeeEntry[]>([]);
+  const [cups, setCups] = useState<CupEntry[]>([]);
   const [mode, setMode] = useState<ClientMode | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [drinking, setDrinking] = useState(false);
   const [name, setName] = useState("");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [manualTime, setManualTime] = useState("");
   const [pendingLocal, setPendingLocal] = useState<CoffeeEntry[]>([]);
+  const [pendingLocalCups, setPendingLocalCups] = useState<CupEntry[]>([]);
   const [importing, setImporting] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [promptCup, setPromptCup] = useState<{ id: string; until: number } | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nameInput = useRef<HTMLInputElement | null>(null);
 
   /* ------------------------------------------------------------- */
   /* Carga inicial                                                  */
   /* ------------------------------------------------------------- */
 
   const refresh = useCallback(async () => {
-    const { mode: nextMode, entries: list } = await loadEntries(HISTORY_DAYS);
-    setMode(nextMode);
-    setEntries(list);
+    const snapshot = await loadEntries(HISTORY_DAYS);
+    setMode(snapshot.mode);
+    setEntries(snapshot.entries);
+    setCups(snapshot.cups);
     setLastSync(Date.now());
-    return nextMode;
+    return snapshot.mode;
   }, []);
 
   useEffect(() => {
@@ -101,6 +138,11 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             setPendingLocal(
               readLocalEntries()
                 .filter((entry) => entry.ts >= cutoff)
+                .sort((a, b) => a.ts - b.ts),
+            );
+            setPendingLocalCups(
+              readLocalCupEntries()
+                .filter((cup) => cup.ts >= cutoff)
                 .sort((a, b) => a.ts - b.ts),
             );
           }
@@ -146,8 +188,26 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
   }, []);
 
   /* ------------------------------------------------------------- */
-  /* Ações                                                          */
+  /* Ações — feitas                                                 */
   /* ------------------------------------------------------------- */
+
+  const removeEntry = useCallback(
+    async (entry: CoffeeEntry) => {
+      const currentMode = mode ?? "local";
+      setEntries((prev) => prev.filter((item) => item.id !== entry.id));
+      try {
+        await deleteEntry(entry.id, currentMode);
+        showToast({
+          kind: "success",
+          text: `Registro das ${formatTime(entry.ts)} removido.`,
+        });
+      } catch {
+        showToast({ kind: "error", text: "Não foi possível remover." });
+        void refresh();
+      }
+    },
+    [mode, refresh, showToast],
+  );
 
   const register = useCallback(
     async (ts?: number) => {
@@ -159,14 +219,12 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           who: name.trim() || undefined,
         });
         setMode(nextMode);
-        setEntries((prev) =>
-          [...prev, entry].sort((a, b) => a.ts - b.ts),
-        );
+        setEntries((prev) => [...prev, entry].sort((a, b) => a.ts - b.ts));
         setNow(Date.now());
         showToast({
           kind: "success",
           text: `Café registrado às ${formatTime(entry.ts)}${name.trim() ? ` — ${name.trim()}` : ""}`,
-          undoId: entry.id,
+          undo: () => void removeEntry(entry),
         });
 
         // confirma que o registro realmente chegou ao servidor
@@ -175,9 +233,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             const res = await fetch("/api/entries?days=1", { cache: "no-store" });
             if (res.ok) {
               const data = (await res.json()) as { entries?: CoffeeEntry[] };
-              const saved = (data.entries ?? []).some(
-                (item) => item.id === entry.id,
-              );
+              const saved = (data.entries ?? []).some((item) => item.id === entry.id);
               if (!saved) {
                 showToast({
                   kind: "error",
@@ -198,67 +254,8 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
         setBusy(false);
       }
     },
-    [busy, name, showToast],
+    [busy, name, removeEntry, showToast],
   );
-
-  const removeEntry = useCallback(
-    async (entry: CoffeeEntry) => {
-      const currentMode = mode ?? "local";
-      setEntries((prev) => prev.filter((item) => item.id !== entry.id));
-      try {
-        await deleteEntry(entry.id, currentMode);
-        showToast({
-          kind: "success",
-          text: `Registro das ${formatTime(entry.ts)} removido.`,
-        });
-      } catch {
-        showToast({ kind: "error", text: "Não foi possível remover." });
-        void refresh();
-      }
-    },
-    [mode, refresh, showToast],
-  );
-
-  const importLocalEntries = useCallback(async () => {
-    if (importing || pendingLocal.length === 0) return;
-    setImporting(true);
-    try {
-      for (const entry of pendingLocal) {
-        await registerEntry({ ts: entry.ts, who: entry.who });
-      }
-      clearLocalEntries();
-      const total = pendingLocal.length;
-      setPendingLocal([]);
-      await refresh();
-      showToast({
-        kind: "success",
-        text: `${total} registro(s) importados para o histórico compartilhado.`,
-      });
-    } catch {
-      showToast({
-        kind: "error",
-        text: "Falha ao importar. Tente de novo em alguns segundos.",
-      });
-    } finally {
-      setImporting(false);
-    }
-  }, [importing, pendingLocal, refresh, showToast]);
-
-  const discardLocalEntries = useCallback(() => {
-    clearLocalEntries();
-    setPendingLocal([]);
-    showToast({ kind: "success", text: "Registros locais descartados." });
-  }, [showToast]);
-
-  const syncNow = useCallback(async () => {
-    if (syncing) return;
-    setSyncing(true);
-    try {
-      await refresh();
-    } finally {
-      setSyncing(false);
-    }
-  }, [refresh, syncing]);
 
   const registerManual = useCallback(() => {
     if (!manualTime) return;
@@ -275,6 +272,155 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     setManualTime("");
   }, [manualTime, register]);
 
+  /* ------------------------------------------------------------- */
+  /* Ações — xícaras                                                */
+  /* ------------------------------------------------------------- */
+
+  const removeCup = useCallback(
+    async (cup: CupEntry) => {
+      const currentMode = mode ?? "local";
+      setCups((prev) => prev.filter((item) => item.id !== cup.id));
+      setPromptCup((prev) => (prev?.id === cup.id ? null : prev));
+      try {
+        await deleteCup(cup.id, currentMode);
+        showToast({
+          kind: "success",
+          text: `Xícara das ${formatTime(cup.ts)} removida.`,
+        });
+      } catch {
+        showToast({ kind: "error", text: "Não foi possível remover a xícara." });
+        void refresh();
+      }
+    },
+    [mode, refresh, showToast],
+  );
+
+  const drink = useCallback(async () => {
+    if (drinking) return;
+    const who = name.trim();
+    if (!who) {
+      showToast({
+        kind: "error",
+        text: "Coloque seu nome primeiro — é ele que conta as suas xícaras.",
+      });
+      nameInput.current?.focus();
+      return;
+    }
+    setDrinking(true);
+    try {
+      const at = Date.now();
+      const brew = activeBrewAt(entries, at);
+      const { mode: nextMode, cup } = await registerCup({ who, brewId: brew?.id });
+      setMode(nextMode);
+      setCups((prev) => [...prev, cup].sort((a, b) => a.ts - b.ts));
+      setNow(at);
+      setPromptCup({ id: cup.id, until: at + RATE_PROMPT_MS });
+      showToast({
+        kind: "success",
+        text: brew
+          ? `Xícara registrada às ${formatTime(cup.ts)} — agora diz como estava o café das ${formatTime(brew.ts)}.`
+          : `Xícara registrada às ${formatTime(cup.ts)}.`,
+        undo: () => void removeCup(cup),
+      });
+    } catch {
+      showToast({
+        kind: "error",
+        text: "Não deu para registrar a xícara. Verifique a conexão e tente de novo.",
+      });
+    } finally {
+      setDrinking(false);
+    }
+  }, [drinking, entries, name, removeCup, showToast]);
+
+  const rate = useCallback(
+    async (cup: CupEntry, rating: Rating | null) => {
+      const currentMode = mode ?? "local";
+      const previous = cup.rating;
+      const applyRating = (value: Rating | undefined) =>
+        setCups((prev) =>
+          prev.map((item) => {
+            if (item.id !== cup.id) return item;
+            const next = { ...item };
+            if (value) next.rating = value;
+            else delete next.rating;
+            return next;
+          }),
+        );
+
+      applyRating(rating ?? undefined);
+      if (rating) setPromptCup((prev) => (prev?.id === cup.id ? null : prev));
+
+      try {
+        await rateCup(cup.id, rating, currentMode);
+        if (rating) {
+          showToast({ kind: "success", text: `Nota ${rating} registrada. Valeu!` });
+        }
+      } catch {
+        applyRating(previous);
+        showToast({ kind: "error", text: "Não foi possível salvar a nota." });
+      }
+    },
+    [mode, showToast],
+  );
+
+  /* ------------------------------------------------------------- */
+  /* Ações — gerais                                                 */
+  /* ------------------------------------------------------------- */
+
+  const importLocalEntries = useCallback(async () => {
+    if (importing || (pendingLocal.length === 0 && pendingLocalCups.length === 0)) return;
+    setImporting(true);
+    try {
+      // feitas primeiro, mapeando o id antigo -> novo para manter as xícaras ligadas
+      const idMap = new Map<string, string>();
+      for (const entry of pendingLocal) {
+        const { entry: saved } = await registerEntry({ ts: entry.ts, who: entry.who });
+        idMap.set(entry.id, saved.id);
+      }
+      for (const cup of pendingLocalCups) {
+        await registerCup({
+          ts: cup.ts,
+          who: cup.who,
+          rating: cup.rating,
+          brewId: cup.brewId ? idMap.get(cup.brewId) : undefined,
+        });
+      }
+      clearLocalEntries();
+      const total = pendingLocal.length + pendingLocalCups.length;
+      setPendingLocal([]);
+      setPendingLocalCups([]);
+      await refresh();
+      showToast({
+        kind: "success",
+        text: `${total} registro(s) importados para o histórico compartilhado.`,
+      });
+    } catch {
+      showToast({
+        kind: "error",
+        text: "Falha ao importar. Tente de novo em alguns segundos.",
+      });
+    } finally {
+      setImporting(false);
+    }
+  }, [importing, pendingLocal, pendingLocalCups, refresh, showToast]);
+
+  const discardLocalEntries = useCallback(() => {
+    clearLocalEntries();
+    setPendingLocal([]);
+    setPendingLocalCups([]);
+    showToast({ kind: "success", text: "Registros locais descartados." });
+  }, [showToast]);
+
+  const syncNow = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  }, [refresh, syncing]);
+
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
@@ -289,60 +435,104 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
   }, []);
 
   const exportCsv = useCallback(() => {
-    const header = ["data", "hora", "quem", "observacao"];
-    const rows = [...entries]
-      .sort((a, b) => a.ts - b.ts)
-      .map((entry) => {
-        const d = new Date(entry.ts);
-        return [
-          `${`${d.getDate()}`.padStart(2, "0")}/${`${d.getMonth() + 1}`.padStart(2, "0")}/${d.getFullYear()}`,
+    const brewById = new Map(entries.map((entry) => [entry.id, entry] as const));
+    const header = ["tipo", "data", "hora", "quem", "nota", "feita_hora", "feita_por", "observacao"];
+    const fmtDate = (ts: number) => {
+      const d = new Date(ts);
+      return `${`${d.getDate()}`.padStart(2, "0")}/${`${d.getMonth() + 1}`.padStart(2, "0")}/${d.getFullYear()}`;
+    };
+    const rows: { ts: number; cells: string[] }[] = [
+      ...entries.map((entry) => ({
+        ts: entry.ts,
+        cells: [
+          "feita",
+          fmtDate(entry.ts),
           formatTime(entry.ts),
           entry.who ?? "",
+          "",
+          "",
+          "",
           entry.note ?? "",
-        ];
-      });
-    const csv = [header, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(";"),
-      )
+        ],
+      })),
+      ...cups.map((cup) => {
+        const brew = cup.brewId ? brewById.get(cup.brewId) : undefined;
+        return {
+          ts: cup.ts,
+          cells: [
+            "xicara",
+            fmtDate(cup.ts),
+            formatTime(cup.ts),
+            cup.who ?? "",
+            cup.rating ? String(cup.rating) : "",
+            brew ? formatTime(brew.ts) : "",
+            brew?.who ?? "",
+            cup.note ?? "",
+          ],
+        };
+      }),
+    ].sort((a, b) => a.ts - b.ts);
+
+    const csv = [header, ...rows.map((row) => row.cells)]
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(";"))
       .join("\r\n");
 
-    const blob = new Blob([`\uFEFF${csv}`], {
-      type: "text/csv;charset=utf-8",
-    });
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `cafes-${todayKey()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [entries]);
+  }, [cups, entries]);
 
   /* ------------------------------------------------------------- */
   /* Dados derivados                                                */
   /* ------------------------------------------------------------- */
 
-  const todayEntries = useMemo(() => {
-    if (!now) return [];
-    const key = dayKey(now);
-    return entries.filter((entry) => dayKey(entry.ts) === key);
-  }, [entries, now]);
+  const todayEntries = useMemo(() => (now ? itemsOfDay(entries, now) : []), [entries, now]);
+  const todayCups = useMemo(() => (now ? itemsOfDay(cups, now) : []), [cups, now]);
 
-  const todayByWho = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const entry of todayEntries) {
-      const key = entry.who?.trim() || "sem nome";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [todayEntries]);
+  const myCupsToday = useMemo(
+    () => [...itemsOf(todayCups, name)].sort((a, b) => b.ts - a.ts),
+    [name, todayCups],
+  );
+
+  const todayByWho = useMemo(() => countBy(todayEntries), [todayEntries]);
+
+  const brewById = useMemo(
+    () => new Map(entries.map((entry) => [entry.id, entry] as const)),
+    [entries],
+  );
+  const brewStats = useMemo(() => statsByBrew(cups), [cups]);
+  const activeBrew = useMemo(() => (now ? activeBrewAt(entries, now) : null), [entries, now]);
+  const todayRating = useMemo(() => averageRating(todayCups), [todayCups]);
+  const histogram = useMemo(() => ratingHistogram(todayCups), [todayCups]);
+
+  const rankingSince = now ? startOfDay(now) - (RANKING_DAYS - 1) * DAY : 0;
+  const rankingEntries = useMemo(
+    () => itemsSince(entries, rankingSince),
+    [entries, rankingSince],
+  );
+  const rankingCups = useMemo(() => itemsSince(cups, rankingSince), [cups, rankingSince]);
+  const baristas = useMemo(
+    () => baristaRanking(rankingEntries, rankingCups),
+    [rankingCups, rankingEntries],
+  );
+  const brewers = useMemo(
+    () => countBy(rankingEntries.filter((entry) => entry.who?.trim())),
+    [rankingEntries],
+  );
+  const periods = useMemo(
+    () => ratingsByPeriod(rankingEntries, rankingCups),
+    [rankingCups, rankingEntries],
+  );
 
   const lastEntry = useMemo(() => {
     if (entries.length === 0) return null;
-    return entries.reduce((latest, entry) =>
-      entry.ts > latest.ts ? entry : latest,
-    );
+    return entries.reduce((latest, entry) => (entry.ts > latest.ts ? entry : latest));
   }, [entries]);
+  const lastStats = lastEntry ? brewStats.get(lastEntry.id) : undefined;
 
   const dayGroups = useMemo<DayGroup[]>(() => {
     const map = new Map<string, CoffeeEntry[]>();
@@ -369,27 +559,32 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
   const dayPoints = useMemo<DayPoint[]>(() => {
     if (!now) return [];
-    const base = now;
-    const counts = new Map<string, number>();
+    const brewCounts = new Map<string, number>();
     for (const entry of entries) {
       const key = dayKey(entry.ts);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      brewCounts.set(key, (brewCounts.get(key) ?? 0) + 1);
+    }
+    const cupCounts = new Map<string, number>();
+    for (const cup of cups) {
+      const key = dayKey(cup.ts);
+      cupCounts.set(key, (cupCounts.get(key) ?? 0) + 1);
     }
 
     const points: DayPoint[] = [];
     for (let i = CHART_DAYS - 1; i >= 0; i--) {
-      const ts = startOfDay(base - i * DAY);
+      const ts = startOfDay(now - i * DAY);
       const key = dayKey(ts);
       points.push({
         key,
         label: i === 0 ? "hoje" : formatShortDate(ts),
-        value: counts.get(key) ?? 0,
+        value: brewCounts.get(key) ?? 0,
+        cups: cupCounts.get(key) ?? 0,
         isToday: i === 0,
         weekDay: WEEKDAYS[new Date(ts).getDay()],
       });
     }
     return points;
-  }, [entries, now]);
+  }, [cups, entries, now]);
 
   const hourPoints = useMemo<HourPoint[]>(() => {
     const counts = new Array<number>(24).fill(0);
@@ -397,13 +592,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
     return counts.map((value, hour) => ({ hour, value }));
   }, [entries]);
 
-  const peakHour = useMemo(() => {
-    let best: HourPoint | null = null;
-    for (const point of hourPoints) {
-      if (point.value > 0 && (!best || point.value > best.value)) best = point;
-    }
-    return best ? best.hour : null;
-  }, [hourPoints]);
+  const peakHour = useMemo(() => computePeakHour(entries), [entries]);
 
   const weekCount = useMemo(() => {
     if (!now) return 0;
@@ -413,18 +602,21 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
   const sinceLast = lastEntry && now ? now - lastEntry.ts : null;
   const reminderDue =
-    mounted &&
-    settings.remind &&
-    sinceLast !== null &&
-    sinceLast > settings.interval * 60_000;
+    mounted && settings.remind && sinceLast !== null && sinceLast > settings.interval * 60_000;
 
   const needName = mounted && mode === "shared" && name.trim().length === 0;
 
-  const lastWasToday =
-    lastEntry && now ? dayKey(lastEntry.ts) === dayKey(now) : false;
+  const lastWasToday = lastEntry && now ? dayKey(lastEntry.ts) === dayKey(now) : false;
 
   const storageKind: StorageKind =
     mode === "shared" ? "redis" : mode === "local" ? "none" : "file";
+
+  const activePrompt =
+    promptCup && now && promptCup.until > now && cups.some((c) => c.id === promptCup.id)
+      ? promptCup.id
+      : null;
+
+  const pendingTotal = pendingLocal.length + pendingLocalCups.length;
 
   /* ------------------------------------------------------------- */
   /* Render                                                         */
@@ -448,7 +640,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               Café da Firma
             </h1>
             <p className="text-[11px] text-muted sm:text-xs">
-              Registro das feitas de café · {mounted ? formatLongDate(now) : "—"}
+              Feitas, xícaras e notas do café · {mounted ? formatLongDate(now) : "—"}
             </p>
           </div>
         </div>
@@ -471,11 +663,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
                 mode === "shared" ? "bg-emerald-600" : "bg-caramel"
               }`}
             />
-            {mode === null
-              ? "conectando…"
-              : mode === "shared"
-                ? "compartilhado"
-                : "só neste navegador"}
+            {mode === null ? "conectando…" : mode === "shared" ? "compartilhado" : "só neste navegador"}
           </span>
 
           <button
@@ -489,10 +677,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             }
             className="inline-flex items-center gap-1.5 rounded-full border border-latte bg-card px-2.5 py-1 text-[11px] font-medium text-mocha transition hover:border-caramel/60 hover:bg-cream disabled:opacity-60"
           >
-            <span
-              className={syncing ? "inline-flex animate-spin" : "inline-flex"}
-              aria-hidden
-            >
+            <span className={syncing ? "inline-flex animate-spin" : "inline-flex"} aria-hidden>
               ↻
             </span>
             {lastSync ? `atualizado ${formatTime(lastSync)}` : "atualizar"}
@@ -500,18 +685,13 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
           <label
             className={`flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-[11px] text-muted transition ${
-              needName
-                ? "border-caramel ring-2 ring-caramel/25"
-                : "border-latte"
+              needName ? "border-caramel ring-2 ring-caramel/25" : "border-latte"
             }`}
-            title={
-              needName
-                ? "Defina seu nome para a equipe saber quem fez o café"
-                : undefined
-            }
+            title={needName ? "Defina seu nome para a equipe saber quem fez o café" : undefined}
           >
             <UserIcon size={13} className="shrink-0" />
             <input
+              ref={nameInput}
               value={name}
               onChange={(event) => updateName(event.target.value)}
               placeholder="seu nome"
@@ -529,17 +709,20 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             <DeviceIcon size={14} /> Histórico salvo apenas neste navegador
           </p>
           <p className="mt-0.5 text-amber-800/90">
-            Funciona agora, mas os cafés ficam no seu dispositivo. Para a equipe
-            toda ver o mesmo histórico na Vercel, conecte um banco Redis
-            (Upstash) ao projeto e defina{" "}
-            <code className="rounded bg-amber-100 px-1">
-              UPSTASH_REDIS_REST_URL
-            </code>{" "}
-            e{" "}
-            <code className="rounded bg-amber-100 px-1">
-              UPSTASH_REDIS_REST_TOKEN
-            </code>
-            . Passo a passo no README.
+            Funciona agora, mas os cafés ficam no seu dispositivo. Para a equipe toda ver o
+            mesmo histórico na Vercel, conecte um banco Redis (Upstash) ao projeto e defina{" "}
+            <code className="rounded bg-amber-100 px-1">UPSTASH_REDIS_REST_URL</code> e{" "}
+            <code className="rounded bg-amber-100 px-1">UPSTASH_REDIS_REST_TOKEN</code>. Passo
+            a passo no{" "}
+            <a
+              href={`${REPO_URL}#readme`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline"
+            >
+              README do projeto
+            </a>
+            .
           </p>
         </div>
       ) : null}
@@ -549,24 +732,24 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
         <div className="animate-rise mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-caramel/40 bg-caramel/10 px-4 py-2.5">
           <UserIcon size={18} className="shrink-0 text-caramel-deep" />
           <p className="min-w-[200px] flex-1 text-xs text-espresso">
-            <strong>Coloque seu nome</strong> no campo ao lado do selo
-            “compartilhado”. É ele que identifica os cafés e avisa os colegas
-            quando você registra.
+            <strong>Coloque seu nome</strong> no campo ao lado do selo “compartilhado”. É ele que
+            identifica os cafés, conta as suas xícaras e avisa os colegas quando você registra.
           </p>
         </div>
       ) : null}
 
       {/* Migração do histórico local para o compartilhado ---------- */}
-      {mounted && mode === "shared" && pendingLocal.length > 0 ? (
+      {mounted && mode === "shared" && pendingTotal > 0 ? (
         <div className="animate-rise mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-sky-600/25 bg-sky-50/80 px-4 py-3">
           <CloudIcon size={20} className="shrink-0 text-sky-700" />
           <div className="min-w-[200px] flex-1">
             <p className="text-sm font-semibold text-espresso">
-              {pendingLocal.length} café(s) salvos neste navegador
+              {pendingLocal.length} café(s)
+              {pendingLocalCups.length > 0 ? ` e ${pendingLocalCups.length} xícara(s)` : ""}{" "}
+              salvos neste navegador
             </p>
             <p className="mt-0.5 text-xs text-mocha">
-              São de antes de o banco ser conectado. Quer enviar para o
-              histórico compartilhado?
+              São de antes de o banco ser conectado. Quer enviar para o histórico compartilhado?
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -596,18 +779,14 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
       ) : null}
 
       {/* Aviso: hora de cadastrar a feita -------------------------- */}
-      {reminderDue && sinceLast !== null ? (
+      {reminderDue && sinceLast !== null && lastEntry ? (
         <div className="animate-rise mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-caramel/40 bg-gradient-to-r from-caramel/15 to-caramel/5 px-4 py-3">
           <BellIcon size={22} className="shrink-0 text-caramel-deep" />
           <div className="min-w-[190px] flex-1">
-            <p className="text-sm font-semibold text-espresso">
-              Hora de cadastrar a feita do café!
-            </p>
+            <p className="text-sm font-semibold text-espresso">Hora de cadastrar a feita do café!</p>
             <p className="mt-0.5 text-xs text-mocha">
-              A última foi {relativeTime(lastEntry!.ts, now)} (
-              {lastWasToday ? "hoje" : "outro dia"} às{" "}
-              {formatTime(lastEntry!.ts)}) — já passou de{" "}
-              {durationLabel(settings.interval)}.
+              A última foi {relativeTime(lastEntry.ts, now)} ({lastWasToday ? "hoje" : "outro dia"}{" "}
+              às {formatTime(lastEntry.ts)}) — já passou de {durationLabel(settings.interval)}.
             </p>
           </div>
           <button
@@ -638,7 +817,11 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               </span>
               <span className="pb-1.5 text-xs text-latte/80 sm:text-sm">
                 {mounted && lastEntry
-                  ? `${relativeTime(lastEntry.ts, now)}${lastEntry.who ? ` · ${lastEntry.who}` : ""}`
+                  ? `${relativeTime(lastEntry.ts, now)}${lastEntry.who ? ` · ${lastEntry.who}` : ""}${
+                      lastStats && lastStats.avg !== null
+                        ? ` · ★ ${lastStats.avg.toFixed(1).replace(".", ",")} (${lastStats.ratings})`
+                        : ""
+                    }`
                   : "nenhum registro ainda"}
               </span>
             </div>
@@ -647,7 +830,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               {mounted && lastEntry && !lastWasToday
                 ? `Último registro ${relativeTime(lastEntry.ts, now)} · ${formatLongDate(lastEntry.ts)}`
                 : todayEntries.length > 0
-                  ? `${todayEntries.length} café(s) hoje — a casa está animada`
+                  ? `${todayEntries.length} feita(s) e ${todayCups.length} xícara(s) hoje — a casa está animada`
                   : "Bora inaugurar o dia com um café?"}
             </p>
 
@@ -657,11 +840,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               disabled={busy}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-caramel px-5 py-3.5 text-base font-semibold text-white shadow-lg shadow-caramel/30 transition hover:bg-caramel-deep active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {busy ? (
-                <SpinnerIcon size={18} className="animate-spin" />
-              ) : (
-                <CupIcon size={18} />
-              )}
+              {busy ? <SpinnerIcon size={18} className="animate-spin" /> : <CupIcon size={18} />}
               {busy ? "Registrando…" : "Registrar café agora"}
             </button>
 
@@ -689,17 +868,13 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
                 <input
                   type="checkbox"
                   checked={settings.remind}
-                  onChange={(event) =>
-                    updateSettings({ remind: event.target.checked })
-                  }
+                  onChange={(event) => updateSettings({ remind: event.target.checked })}
                   className="h-3.5 w-3.5 accent-caramel"
                 />
                 <span>avisar após</span>
                 <select
                   value={settings.interval}
-                  onChange={(event) =>
-                    updateSettings({ interval: Number(event.target.value) })
-                  }
+                  onChange={(event) => updateSettings({ interval: Number(event.target.value) })}
                   disabled={!settings.remind}
                   className="rounded-lg border border-white/20 bg-white/10 px-1.5 py-1 text-xs text-cream outline-none disabled:opacity-40"
                 >
@@ -716,7 +891,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <StatCard
-            label="Hoje"
+            label="Feitas hoje"
             icon="cup"
             value={mounted ? String(todayEntries.length) : "—"}
             hint={
@@ -726,40 +901,71 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             }
           />
           <StatCard
+            label="Xícaras hoje"
+            icon="mug"
+            value={mounted ? String(todayCups.length) : "—"}
+            hint={
+              !mounted
+                ? undefined
+                : name.trim()
+                  ? `você: ${myCupsToday.length}${settings.cupGoal ? ` de ${settings.cupGoal}` : ""}`
+                  : "coloque seu nome"
+            }
+          />
+          <StatCard
+            label="Nota do café"
+            icon="star"
+            value={mounted && todayRating.avg !== null ? todayRating.avg.toFixed(1).replace(".", ",") : "—"}
+            hint={
+              mounted && todayRating.ratings > 0
+                ? `${todayRating.ratings} ${todayRating.ratings === 1 ? "avaliação" : "avaliações"} hoje`
+                : "sem avaliações hoje"
+            }
+          />
+          <StatCard
             label="Últimos 7 dias"
             icon="calendar"
             value={mounted ? String(weekCount) : "—"}
-            hint="incluindo hoje"
-          />
-          <StatCard
-            label="Média por dia"
-            icon="chart"
-            value={mounted ? (weekCount / 7).toFixed(1).replace(".", ",") : "—"}
-            hint="na última semana"
-          />
-          <StatCard
-            label="Horário de pico"
-            icon="clock"
-            value={
-              mounted && peakHour !== null
-                ? `${`${peakHour}`.padStart(2, "0")}h`
-                : "—"
+            hint={
+              mounted
+                ? `média ${(weekCount / 7).toFixed(1).replace(".", ",")}/dia${
+                    peakHour !== null ? ` · pico ${`${peakHour}`.padStart(2, "0")}h` : ""
+                  }`
+                : undefined
             }
-            hint="no histórico"
           />
         </div>
       </section>
+
+      {/* Consumo: tomei um café + como estava ---------------------- */}
+      <div className="mt-4">
+        <CupsCard
+          name={name}
+          mode={mode}
+          busy={drinking}
+          myCups={myCupsToday}
+          teamCups={todayCups}
+          activeBrew={activeBrew}
+          brewById={brewById}
+          brewStats={brewStats}
+          todayRating={todayRating}
+          histogram={histogram}
+          cupGoal={settings.cupGoal}
+          promptCupId={activePrompt}
+          onDrink={() => void drink()}
+          onRate={(cup, rating) => void rate(cup, rating)}
+          onRemove={(cup) => void removeCup(cup)}
+          onGoalChange={(goal) => updateSettings({ cupGoal: goal })}
+        />
+      </div>
 
       {/* Gráficos -------------------------------------------------- */}
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-latte/70 bg-card/70 p-4">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-espresso">
-              Cafés por dia
-            </h2>
+            <h2 className="text-sm font-semibold text-espresso">Feitas e xícaras por dia</h2>
             <span className="text-[11px] text-muted">
-              últimos {CHART_DAYS} dias · máx.{" "}
-              {Math.max(0, ...dayPoints.map((point) => point.value))}
+              últimos {CHART_DAYS} dias · máx. {Math.max(0, ...dayPoints.map((p) => Math.max(p.value, p.cups)))}
             </span>
           </div>
           <DayChart data={dayPoints} />
@@ -767,13 +973,9 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
         <div className="rounded-2xl border border-latte/70 bg-card/70 p-4">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-espresso">
-              Cafés por hora do dia
-            </h2>
+            <h2 className="text-sm font-semibold text-espresso">Feitas por hora do dia</h2>
             <span className="text-[11px] text-muted">
-              {peakHour !== null
-                ? `pico às ${`${peakHour}`.padStart(2, "0")}h`
-                : "sem dados ainda"}
+              {peakHour !== null ? `pico às ${`${peakHour}`.padStart(2, "0")}h` : "sem dados ainda"}
             </span>
           </div>
           <HourChart data={hourPoints} peakHour={peakHour} />
@@ -786,7 +988,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-sm font-semibold text-espresso">Hoje</h2>
             <span className="text-[11px] text-muted">
-              {mounted ? `${todayEntries.length} registro(s)` : "—"}
+              {mounted ? `${todayEntries.length} feita(s)` : "—"}
             </span>
           </div>
           {mounted && todayByWho.length > 0 ? (
@@ -810,16 +1012,14 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-14 animate-pulse rounded-xl bg-cream-deep/60"
-                />
+                <div key={i} className="h-14 animate-pulse rounded-xl bg-cream-deep/60" />
               ))}
             </div>
           ) : (
             <TodayList
               entries={todayEntries}
               now={now}
+              brewStats={brewStats}
               onDelete={(entry) => void removeEntry(entry)}
             />
           )}
@@ -827,14 +1027,13 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
 
         <div className="rounded-2xl border border-latte/70 bg-card/70 p-4">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold text-espresso">
-              Histórico por dia
-            </h2>
+            <h2 className="text-sm font-semibold text-espresso">Histórico por dia</h2>
             <button
               type="button"
               onClick={exportCsv}
-              disabled={entries.length === 0}
+              disabled={entries.length === 0 && cups.length === 0}
               className="inline-flex items-center gap-1 rounded-lg border border-latte px-2 py-1 text-[11px] font-medium text-mocha transition hover:border-caramel/60 hover:bg-cream disabled:opacity-40"
+              title="Feitas e xícaras, com notas, em CSV (abre no Excel)"
             >
               <DownloadIcon size={12} /> Exportar CSV
             </button>
@@ -842,20 +1041,19 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 animate-pulse rounded-xl bg-cream-deep/60"
-                />
+                <div key={i} className="h-10 animate-pulse rounded-xl bg-cream-deep/60" />
               ))}
             </div>
           ) : (
-            <HistoryList
-              groups={dayGroups}
-              onDelete={(entry) => void removeEntry(entry)}
-            />
+            <HistoryList groups={dayGroups} onDelete={(entry) => void removeEntry(entry)} />
           )}
         </div>
       </section>
+
+      {/* Ranking --------------------------------------------------- */}
+      <div className="mt-4">
+        <RankingCard days={RANKING_DAYS} baristas={baristas} brewers={brewers} periods={periods} />
+      </div>
 
       <section className="mt-4">
         <ExtensionCard siteUrl={siteUrl} />
@@ -873,15 +1071,22 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
             </>
           )}
         </p>
-        <p className="flex items-center gap-2">
+        <p className="flex flex-wrap items-center gap-2">
           <a
-            href="/privacidade"
-            className="font-medium text-mocha hover:text-caramel-deep hover:underline"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-mocha hover:text-caramel-deep hover:underline"
+            title="Código-fonte, issues e sugestões"
           >
+            <GitHubIcon size={13} /> Código aberto no GitHub
+          </a>
+          <span aria-hidden>·</span>
+          <a href="/privacidade" className="font-medium text-mocha hover:text-caramel-deep hover:underline">
             Política de privacidade
           </a>
           <span aria-hidden>·</span>
-          <span>Next.js na Vercel</span>
+          <span title="Versão do site e da extensão">v{version}</span>
         </p>
       </footer>
 
@@ -891,9 +1096,7 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
           <div
             role="status"
             className={`flex max-w-md items-center gap-2.5 rounded-2xl px-4 py-3 text-sm shadow-2xl ${
-              toast.kind === "success"
-                ? "bg-espresso text-cream"
-                : "bg-red-900 text-white"
+              toast.kind === "success" ? "bg-espresso text-cream" : "bg-red-900 text-white"
             }`}
           >
             {toast.kind === "success" ? (
@@ -902,13 +1105,13 @@ export default function CoffeeApp({ siteUrl }: { siteUrl: string }) {
               <WarningIcon size={16} className="shrink-0" />
             )}
             <p className="flex-1">{toast.text}</p>
-            {toast.undoId ? (
+            {toast.undo ? (
               <button
                 type="button"
                 onClick={() => {
-                  const entry = entries.find((item) => item.id === toast.undoId);
+                  const undo = toast.undo;
                   setToast(null);
-                  if (entry) void removeEntry(entry);
+                  undo?.();
                 }}
                 className="rounded-lg bg-white/15 px-2 py-1 text-xs font-semibold transition hover:bg-white/25"
               >
