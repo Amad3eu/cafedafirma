@@ -178,6 +178,7 @@ npm run build:ext
 ### O que a extensão faz
 
 - **Popup**: último café + "há quanto tempo" + nota da feita + sugestão de quem faz o próximo, aviso laranja quando passou do intervalo, botão **Registrar café agora**, botão **Tomei um café** (com as estrelas "como estava o café?"), métricas de feitas / xícaras / você / nota, quem fez e quem tomou hoje, lista dos cafés do dia com xícaras e nota por feita, e atalho para o site e para o repositório.
+- **Modo escuro** automático no popup e nas opções, seguindo o tema do sistema.
 - **Badge no ícone**: número de feitas de hoje.
 - **Notificações**: intervalo (manhã/tarde), primeiro café do dia, "colega fez café" e, ao registrar uma xícara pelo atalho ou menu, "como estava o café?" com botões 👍 (nota 4) / 👎 (nota 2).
 - **Atalhos**: `Alt+Shift+C` registra a feita, `Alt+Shift+T` registra que você tomou um café, `Alt+Shift+P` abre o painel.

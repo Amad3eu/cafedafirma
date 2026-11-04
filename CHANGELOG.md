@@ -3,6 +3,28 @@
 Todas as mudanças relevantes do site e da extensão. O número de versão é o mesmo
 para os dois (`package.json` e `extension/*/manifest.json`).
 
+## [1.8.1] — 2026-11-04
+
+### Extensão (visual)
+- **Cabe na janela do Chrome.** O popup passou de ~850 px para ~600 px no
+  estado comum (o Chrome corta em 600): nota da feita na mesma linha do
+  "há quanto tempo", sugestão de rodízio como pílula no bloco escuro, "Equipe
+  hoje" com uma linha por pessoa (fez · tomou) em vez de dois grupos de chips,
+  "Cafés de hoje" com 3 itens e "ver todos", espaçamentos menores.
+- **"Tomei um café"** virou um botão secundário com a largura e o raio do
+  principal, sem encostar nele; o texto redundante ao lado sumiu (a métrica
+  "Você" já mostra 3/4 e fica âmbar ao passar da meta).
+- **Estrelas** vazias com contorno (☆) em tom mais escuro; antes quase não
+  apareciam sobre o creme.
+- **Modo escuro** no popup e nas opções (`prefers-color-scheme`), com todas
+  as cores em variáveis.
+- **Esqueleto** de carregamento nas listas, para o conteúdo não "pular".
+- Texto secundário mais escuro (contraste 5,1:1 em vez de 4,0:1).
+- **Correção:** o aviso "Permissão de acesso ao site pendente" aparecia sempre
+  na página de opções do Chrome, mesmo com a permissão concedida — o atributo
+  `hidden` perdia para o `display: flex` do bloco.
+- Capturas em `docs/` atualizadas (popup claro, com nota, escuro e opções).
+
 ## [1.8.0] — 2026-11-04
 
 ### Novo
