@@ -3,6 +3,20 @@
 Todas as mudanças relevantes do site e da extensão. O número de versão é o mesmo
 para os dois (`package.json` e `extension/*/manifest.json`).
 
+## [1.8.0] — 2026-11-04
+
+### Novo
+- **Quem faz o próximo?** — rodízio justo calculado com feitas × xícaras dos
+  últimos 30 dias: quem tomou mais do que as próprias feitas renderam vai para
+  a frente da fila ("É a vez de Caio: tomou 9, fez 1"). Empate vai para quem
+  fez café há mais tempo. Aparece como cartão, como sugestão abaixo do botão
+  "Registrar café agora" e no popup da extensão ("Próximo café: você").
+- **Café fresco vale mais?** — nota média por idade do café na hora da xícara
+  (até 30 min, 30 min a 1 h, 1 h a 2 h, mais de 2 h) com a conclusão em texto
+  ("Depois de 1 h a nota cai de 4,3 para 2,9"). O cartão "Tomei um café" passa
+  a mostrar a idade do café atual e a nota típica nessa idade.
+- Sete testes novos cobrindo o rodízio e as faixas de idade.
+
 ## [1.7.0] — 2026-11-04
 
 ### Novo

@@ -129,6 +129,48 @@ function statsByBrew(cups) {
   return map;
 }
 
+/**
+ * Rodízio justo (mesma conta do site, lib/stats.ts): quem tomou mais xícaras
+ * do que as próprias feitas renderam vai para a frente da fila.
+ */
+function nextBrewer(entries, cups) {
+  if (entries.length === 0) return null;
+  const ids = new Set(entries.map((entry) => entry.id));
+  const linked = cups.filter((cup) => cup.brewId && ids.has(cup.brewId)).length;
+  const perBrew = Math.max(1, linked / entries.length);
+
+  const people = new Map();
+  const slot = (who) => {
+    const key = String(who || "").trim().toLowerCase();
+    if (!key) return null;
+    if (!people.has(key)) {
+      people.set(key, { who: String(who).trim(), brews: 0, cups: 0, lastBrewTs: null });
+    }
+    return people.get(key);
+  };
+  for (const entry of entries) {
+    const item = slot(entry.who);
+    if (!item) continue;
+    item.brews += 1;
+    if (item.lastBrewTs === null || entry.ts > item.lastBrewTs) item.lastBrewTs = entry.ts;
+  }
+  for (const cup of cups) {
+    const item = slot(cup.who);
+    if (item) item.cups += 1;
+  }
+  const list = [...people.values()].map((item) => ({
+    ...item,
+    debt: item.cups - item.brews * perBrew,
+  }));
+  list.sort(
+    (a, b) =>
+      b.debt - a.debt ||
+      (a.lastBrewTs ?? -Infinity) - (b.lastBrewTs ?? -Infinity) ||
+      a.who.localeCompare(b.who),
+  );
+  return list.find((item) => item.debt > 0.5) || null;
+}
+
 function showError(message) {
   const box = el("error");
   box.textContent = message;
@@ -231,6 +273,21 @@ function render(entries, cups, storage) {
     el("last-time").textContent = "--:--";
     el("last-meta").textContent = "nenhum registro ainda";
     lastRating.hidden = true;
+  }
+
+  // sugestão de rodízio (últimos 30 dias)
+  const nextBox = el("next-brewer");
+  const next = hasCups ? nextBrewer(entries, cupList) : null;
+  if (next) {
+    nextBox.textContent = "";
+    nextBox.append(document.createTextNode("Próximo café: "));
+    const who = document.createElement("strong");
+    who.textContent = sameName(next.who, currentConfig.name) ? "você" : next.who;
+    nextBox.append(who);
+    nextBox.append(document.createTextNode(` (tomou ${next.cups}, fez ${next.brews})`));
+    nextBox.hidden = false;
+  } else {
+    nextBox.hidden = true;
   }
 
   // aviso de "hora de cadastrar a feita"

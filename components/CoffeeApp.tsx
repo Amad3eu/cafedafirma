@@ -19,13 +19,20 @@ import {
   activeBrewAt,
   averageRating,
   baristaRanking,
+  brewAgeBucket,
   countBy,
+  cupsPerBrew,
+  formatRating,
+  freshnessInsight,
   itemsOf,
   itemsOfDay,
   itemsSince,
+  nextBrewerRanking,
   peakHour as computePeakHour,
+  ratingByBrewAge,
   ratingHistogram,
   ratingsByPeriod,
+  sameName,
   statsByBrew,
 } from "@/lib/stats";
 import {
@@ -54,6 +61,8 @@ import HistoryList, { type DayGroup } from "./HistoryList";
 import ExtensionCard from "./ExtensionCard";
 import CupsCard from "./CupsCard";
 import RankingCard from "./RankingCard";
+import NextBrewerCard from "./NextBrewerCard";
+import FreshnessCard from "./FreshnessCard";
 import {
   BellIcon,
   ClockIcon,
@@ -527,6 +536,26 @@ export default function CoffeeApp({
     () => ratingsByPeriod(rankingEntries, rankingCups),
     [rankingCups, rankingEntries],
   );
+  const nextBrewers = useMemo(
+    () => nextBrewerRanking(rankingEntries, rankingCups),
+    [rankingCups, rankingEntries],
+  );
+  const perBrew = useMemo(() => cupsPerBrew(rankingEntries, rankingCups), [rankingCups, rankingEntries]);
+  const nextBrewer = nextBrewers.find((item) => item.debt > 0.5) ?? null;
+  const ageBuckets = useMemo(
+    () => ratingByBrewAge(rankingEntries, rankingCups),
+    [rankingCups, rankingEntries],
+  );
+  const freshness = useMemo(() => freshnessInsight(ageBuckets), [ageBuckets]);
+  const freshnessHint = useMemo(() => {
+    if (!activeBrew || !now) return null;
+    const ageMinutes = Math.max(0, Math.floor((now - activeBrew.ts) / 60_000));
+    const bucket = brewAgeBucket(ageBuckets, activeBrew.ts, now);
+    const age = `Café atual tem ${durationLabel(ageMinutes)}`;
+    return bucket.ratings >= 3
+      ? `${age} · nessa idade a nota costuma ser ${formatRating(bucket.avg)}.`
+      : `${age}.`;
+  }, [activeBrew, ageBuckets, now]);
 
   const lastEntry = useMemo(() => {
     if (entries.length === 0) return null;
@@ -844,6 +873,20 @@ export default function CoffeeApp({
               {busy ? "Registrando…" : "Registrar café agora"}
             </button>
 
+            {mounted && nextBrewer ? (
+              <p className="mt-2 text-[11px] text-latte/70">
+                Sugestão de rodízio:{" "}
+                {sameName(nextBrewer.who, name) ? (
+                  <strong className="text-cream">é a sua vez de fazer o próximo</strong>
+                ) : (
+                  <>
+                    <strong className="text-cream">{nextBrewer.who}</strong> faz o próximo
+                  </>
+                )}{" "}
+                (tomou {nextBrewer.cups}, fez {nextBrewer.brews})
+              </p>
+            ) : null}
+
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-latte/70">
               <div className="flex items-center gap-1.5">
                 <ClockIcon size={13} />
@@ -952,6 +995,7 @@ export default function CoffeeApp({
           histogram={histogram}
           cupGoal={settings.cupGoal}
           promptCupId={activePrompt}
+          freshnessHint={freshnessHint}
           onDrink={() => void drink()}
           onRate={(cup, rating) => void rate(cup, rating)}
           onRemove={(cup) => void removeCup(cup)}
@@ -1048,6 +1092,17 @@ export default function CoffeeApp({
             <HistoryList groups={dayGroups} onDelete={(entry) => void removeEntry(entry)} />
           )}
         </div>
+      </section>
+
+      {/* Rodízio + frescor ----------------------------------------- */}
+      <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        <NextBrewerCard days={RANKING_DAYS} ranking={nextBrewers} perBrew={perBrew} name={name} />
+        <FreshnessCard
+          days={RANKING_DAYS}
+          buckets={ageBuckets}
+          insight={freshness}
+          currentHint={mounted ? freshnessHint : null}
+        />
       </section>
 
       {/* Ranking --------------------------------------------------- */}
