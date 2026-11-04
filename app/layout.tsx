@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { REPO_URL } from "@/lib/constants";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,10 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Café da Firma · Registro das feitas de café",
+  title: "Café da Firma · Feitas, xícaras e notas do café",
   description:
-    "Registre a hora do café em um clique, veja o histórico e os gráficos das feitas do dia.",
+    "Registre a feita do café em um clique, conte suas xícaras do dia, avalie como estava o café e veja histórico, gráficos e ranking da equipe.",
   applicationName: "Café da Firma",
+  authors: [{ name: "Amad3eu", url: REPO_URL }],
+  keywords: ["café", "equipe", "registro", "extensão", "Next.js"],
+  other: { "source-code": REPO_URL },
 };
 
 export const viewport: Viewport = {

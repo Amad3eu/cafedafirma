@@ -13,6 +13,7 @@ const DEFAULTS = {
   watchMin: 2, // intervalo de verificação (também usado p/ atividade da equipe)
   teamNotify: true, // avisar quando um colega registra café
   clickAction: "popup", // "popup" = abrir painel | "register" = registrar direto
+  cupGoal: 4, // meta pessoal de xícaras por dia (0 = sem meta)
   lastNotified: 0, // último lembrete de intervalo
   lastFirstDay: "", // dia em que o aviso de primeiro café já foi enviado
   lastTeamTs: 0, // maior timestamp já notificado (equipe)
@@ -35,6 +36,7 @@ async function getConfig() {
     watchMin: Math.max(1, Number(stored.watchMin) || DEFAULTS.watchMin),
     teamNotify: stored.teamNotify !== false,
     clickAction: stored.clickAction === "register" ? "register" : "popup",
+    cupGoal: Number.isFinite(Number(stored.cupGoal)) ? Number(stored.cupGoal) : DEFAULTS.cupGoal,
     lastNotified: Number(stored.lastNotified) || 0,
     lastFirstDay: stored.lastFirstDay || "",
     lastTeamTs: Number(stored.lastTeamTs) || 0,
@@ -59,6 +61,29 @@ async function postCoffee(config) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data?.entry ?? null;
+}
+
+/** Registra uma xícara; o servidor liga à feita ativa (última até 12 h). */
+async function postCup(config) {
+  const res = await fetch(`${config.baseUrl}/api/cups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ who: config.name || undefined }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data?.cup ?? null;
+}
+
+async function patchCup(baseUrl, id, rating) {
+  const res = await fetch(`${baseUrl}/api/cups?id=${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data?.cup ?? null;
 }
 
 /* ----------------------------- utilidades ----------------------------- */
@@ -107,7 +132,7 @@ function setBadge(text) {
 
 /** Cria notificação com botão "Registrar café" (quando suportado). */
 function notify(id, title, message, options = {}) {
-  const { withButton = false, onClickUrl = null } = options;
+  const { withButton = false, buttons = null, onClickUrl = null } = options;
   const payload = {
     type: "basic",
     iconUrl: "icons/icon-128.png",
@@ -116,7 +141,9 @@ function notify(id, title, message, options = {}) {
     priority: 1,
   };
 
-  if (withButton) {
+  if (Array.isArray(buttons) && buttons.length > 0) {
+    payload.buttons = buttons.slice(0, 2).map((title) => ({ title }));
+  } else if (withButton) {
     payload.buttons = [{ title: "☕ Registrar café agora" }];
   }
 
@@ -164,6 +191,70 @@ async function quickRegister() {
       "Não deu para registrar",
       "Verifique a conexão ou o endereço do site nas opções.",
     );
+  }
+}
+
+/** Botões da notificação de xícara: índice -> nota. */
+const CUP_BUTTONS = ["👍 Estava bom", "👎 Não curti"];
+const CUP_BUTTON_RATING = [4, 2];
+
+/** "Tomei um café" pelo atalho/menu: grava a xícara e pergunta como estava. */
+async function quickDrink() {
+  const config = await getConfig();
+  if (!config.baseUrl) {
+    notify("cafe-erro", "Configure o site", "Abra as opções da extensão.");
+    return;
+  }
+  if (!config.name) {
+    notify(
+      "cafe-erro-nome",
+      "Falta o seu nome",
+      "Defina seu nome nas opções para contar as suas xícaras.",
+    );
+    return;
+  }
+  try {
+    const cup = await postCup(config);
+    if (!cup) throw new Error("sem banco");
+    // o popup reaproveita a pergunta por até 30 min
+    await api.storage.local.set({
+      pendingRate: { id: cup.id, until: Date.now() + 30 * 60 * 1000 },
+    });
+    notify(
+      `cafe-cup-${cup.id}`,
+      "Xícara registrada ☕",
+      `Às ${timeLabel(cup.ts)} — ${config.name}. Como estava o café?`,
+      { buttons: CUP_BUTTONS },
+    );
+  } catch {
+    notify(
+      `cafe-erro-${Date.now()}`,
+      "Não deu para registrar a xícara",
+      "Verifique a conexão ou o endereço do site nas opções.",
+    );
+  }
+}
+
+async function rateFromNotification(notificationId, buttonIndex) {
+  const cupId = String(notificationId).replace(/^cafe-cup-/, "");
+  const rating = CUP_BUTTON_RATING[buttonIndex];
+  if (!cupId || !rating) return;
+  const config = await getConfig();
+  try {
+    await patchCup(config.baseUrl, cupId, rating);
+    await api.storage.local.set({ pendingRate: null });
+    notify(
+      `cafe-rated-${cupId}`,
+      "Nota registrada ⭐",
+      `Nota ${rating} para o café. Valeu!`,
+    );
+  } catch {
+    notify(`cafe-erro-${Date.now()}`, "Não deu para salvar a nota", "Tente pelo painel.");
+  }
+  try {
+    api.notifications.clear(notificationId);
+  } catch {
+    /* ignora */
   }
 }
 
@@ -305,6 +396,7 @@ function setupContextMenu() {
     const base = { id: "", title: "", contexts: ["action"] };
     const items = [
       { id: "cafe-register", title: "☕ Registrar café agora" },
+      { id: "cafe-drink", title: "🍵 Tomei um café" },
       { id: "cafe-panel", title: "Abrir painel" },
       { id: "cafe-options", title: "Configurar" },
     ];
@@ -362,14 +454,20 @@ api.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM) void check();
 });
 
-api.notifications.onButtonClicked.addListener((notificationId) => {
-  if (/^cafe-(reminder|first|team)/.test(String(notificationId))) {
+api.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+  const id = String(notificationId);
+  if (id.startsWith("cafe-cup-")) {
+    void rateFromNotification(id, Number(buttonIndex) || 0);
+    return;
+  }
+  if (/^cafe-(reminder|first|team)/.test(id)) {
     void quickRegister();
   }
 });
 
 api.contextMenus?.onClicked.addListener((info) => {
   if (info.menuItemId === "cafe-register") void quickRegister();
+  if (info.menuItemId === "cafe-drink") void quickDrink();
   if (info.menuItemId === "cafe-panel") openPanel();
   if (info.menuItemId === "cafe-options" && api.runtime.openOptionsPage) {
     api.runtime.openOptionsPage();
@@ -378,6 +476,7 @@ api.contextMenus?.onClicked.addListener((info) => {
 
 api.commands?.onCommand.addListener((command) => {
   if (command === "registrar-cafe") void quickRegister();
+  if (command === "tomei-cafe") void quickDrink();
   if (command === "abrir-painel") openPanel();
 });
 
@@ -406,6 +505,12 @@ api.notifications.onClicked.addListener(async (notificationId) => {
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "cafe:refresh") {
     check().finally(() => {
+      if (typeof sendResponse === "function") sendResponse({ ok: true });
+    });
+    return true;
+  }
+  if (message?.type === "cafe:drink") {
+    quickDrink().finally(() => {
       if (typeof sendResponse === "function") sendResponse({ ok: true });
     });
     return true;

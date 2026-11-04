@@ -86,6 +86,23 @@
         </label>
 
         <label>
+          <span>Meta de xícaras por dia</span>
+          <select id="cupGoal">
+            <option value="0">Sem meta</option>
+            <option value="2">2 xícaras</option>
+            <option value="3">3 xícaras</option>
+            <option value="4">4 xícaras</option>
+            <option value="5">5 xícaras</option>
+            <option value="6">6 xícaras</option>
+            <option value="8">8 xícaras</option>
+          </select>
+          <small
+            >O painel mostra “você: 2/4” e avisa quando passar da meta. Só vale
+            para as xícaras que você registra com “Tomei um café”.</small
+          >
+        </label>
+
+        <label>
           <span>Clique no ícone da extensão</span>
           <select id="clickAction">
             <option value="popup">Abrir o painel</option>
@@ -134,12 +151,21 @@
       </form>
 
       <p class="hint">
-        <strong>Atalhos:</strong> <kbd>Alt+Shift+C</kbd> registra um café e
-        <kbd>Alt+Shift+P</kbd> abre o painel (pode ser trocado em
-        <code>chrome://extensions/shortcuts</code> ou
+        <strong>Atalhos:</strong> <kbd>Alt+Shift+C</kbd> registra um café,
+        <kbd>Alt+Shift+T</kbd> registra que você <em>tomou</em> um café (e
+        pergunta como estava) e <kbd>Alt+Shift+P</kbd> abre o painel (pode ser
+        trocado em <code>chrome://extensions/shortcuts</code> ou
         <code>about:addons</code> → engrenagem → Gerenciar atalhos).<br />
-        Botão direito no ícone: registrar, abrir painel e configurar. Clique com
-        o botão direito → “Fixar” deixa o ícone sempre visível.
+        Botão direito no ícone: registrar, tomei um café, abrir painel e
+        configurar. Clique com o botão direito → “Fixar” deixa o ícone sempre
+        visível.
+      </p>
+
+      <p class="hint">
+        <strong>Código aberto:</strong> o site e a extensão estão em
+        <a href="https://github.com/Amad3eu/cafedafirma" target="_blank" rel="noreferrer"
+          >github.com/Amad3eu/cafedafirma</a
+        >. Ideias e problemas são bem-vindos nas issues.
       </p>
     </div>
 

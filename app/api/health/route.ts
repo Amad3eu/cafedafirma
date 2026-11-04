@@ -1,10 +1,10 @@
 import { redisCommand, redisConfig, redisConfigured } from "@/lib/redis";
 import type { CoffeeEntry } from "@/lib/types";
-import { listEntries, storageKind } from "@/lib/store";
+import { REDIS_KEYS, listEntriesAndCups, storageKind } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-const REDIS_KEY = "cafe:entries";
+const REDIS_KEY = REDIS_KEYS.entries;
 
 /**
  * Diagnóstico do armazenamento — não expõe segredos.
@@ -32,6 +32,7 @@ export async function GET() {
     host: config ? safeHost(config.url) : null,
     roundTrip: null,
     total: null,
+    totalCups: null,
     recent: [] as Pick<CoffeeEntry, "ts" | "who">[],
     error: null as string | null,
   };
@@ -42,8 +43,9 @@ export async function GET() {
   }
 
   try {
-    // 1) quantos registros existem hoje
+    // 1) quantos registros existem (feitas e xícaras)
     report.total = await redisCommand<number>(["ZCARD", REDIS_KEY]);
+    report.totalCups = await redisCommand<number>(["ZCARD", REDIS_KEYS.cups]);
 
     // 2) teste de ida e volta (grava, lê e apaga uma chave temporária)
     const probeKey = "cafe:health";
@@ -71,10 +73,14 @@ export async function GET() {
 
   // confirma que a leitura usada pelo app enxerga os dados
   try {
-    const entries = await listEntries(Date.now() - 400 * 24 * 60 * 60 * 1000);
+    const { entries, cups } = await listEntriesAndCups(
+      Date.now() - 400 * 24 * 60 * 60 * 1000,
+    );
     report.visibleToApp = entries.length;
+    report.visibleCups = cups.length;
   } catch {
     report.visibleToApp = null;
+    report.visibleCups = null;
   }
 
   return Response.json(report, { headers: { "Cache-Control": "no-store" } });

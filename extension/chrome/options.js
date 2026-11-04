@@ -9,6 +9,7 @@ const DEFAULTS = {
   teamNotify: true,
   watchMin: 2,
   clickAction: "popup",
+  cupGoal: 4,
 };
 
 const el = (id) => document.getElementById(id);
@@ -70,6 +71,9 @@ async function restore() {
   el("teamNotify").value = stored.teamNotify === false ? "0" : "1";
   el("watchMin").value = String(stored.watchMin || DEFAULTS.watchMin);
   el("clickAction").value = stored.clickAction === "register" ? "register" : "popup";
+  el("cupGoal").value = String(
+    Number.isFinite(Number(stored.cupGoal)) ? Number(stored.cupGoal) : DEFAULTS.cupGoal,
+  );
   const base = normalizeBase(stored.baseUrl);
   if (base) el("open-site").href = base;
   await refreshGrantBanner();
@@ -91,6 +95,7 @@ el("form").addEventListener("submit", async (event) => {
     teamNotify: el("teamNotify").value === "1",
     watchMin: Number(el("watchMin").value) || DEFAULTS.watchMin,
     clickAction: el("clickAction").value === "register" ? "register" : "popup",
+    cupGoal: Math.max(0, Number(el("cupGoal").value) || 0),
   });
 
   // avisa o background para reagendar as verificações
@@ -114,7 +119,7 @@ el("test").addEventListener("click", async () => {
   }
   setStatus("Testando…", "ok");
   try {
-    const res = await fetch(`${baseUrl}/api/entries?days=30`, {
+    const res = await fetch(`${baseUrl}/api/entries?days=30&cups=1`, {
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -133,8 +138,9 @@ el("test").addEventListener("click", async () => {
       data.storage === "redis"
         ? "histórico compartilhado"
         : "modo local (sem Redis no site)";
+    const cups = Array.isArray(data.cups) ? `${data.cups.length} xícara(s) · ` : "";
     setStatus(
-      `Conectado! ${entries.length} registro(s) no período · ${todayCount} hoje · ${extra}`,
+      `Conectado! ${entries.length} feita(s) no período · ${todayCount} hoje · ${cups}${extra}`,
       "ok",
     );
   } catch {

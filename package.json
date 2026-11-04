@@ -1,12 +1,28 @@
 {
   "name": "cafe-da-firma",
-  "version": "1.0.0",
+  "version": "1.7.0",
   "private": true,
+  "description": "Registro das feitas de café da equipe, com xícaras tomadas, nota do café, avisos, histórico, gráficos e extensão de navegador.",
+  "homepage": "https://github.com/Amad3eu/cafedafirma#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Amad3eu/cafedafirma.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Amad3eu/cafedafirma/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test",
     "make:icons": "node scripts/make-icons.cjs",
     "seed:demo": "node scripts/seed-demo.cjs",
     "build:ext": "bash scripts/build-ext.sh"
@@ -24,7 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3"
-  },
-  "description": "Registro das feitas de café da empresa, com aviso, histórico e gráficos."
+  }
 }

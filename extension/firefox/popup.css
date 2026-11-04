@@ -14,6 +14,8 @@
   --caramel-deep: #96522a;
   --latte: #ece0d1;
   --muted: #8a7768;
+  --cups: #2b5ea8;
+  --star: #e5a100;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -261,6 +263,12 @@ main {
   color: #d6c1ad;
 }
 
+.hero-rating {
+  margin: var(--space-2) 0 0;
+  font-size: 11.5px;
+  color: #e9d7c4;
+}
+
 /* ----------------------------- lembrete ----------------------------- */
 
 .reminder {
@@ -329,6 +337,107 @@ main {
   color: #1d6b45;
 }
 
+/* --------------------------- tomei um café -------------------------- */
+
+.cup-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.drink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 10px 14px;
+  border: 1px solid rgba(43, 94, 168, 0.35);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, #f4f8ff, #e9f1ff);
+  color: var(--cups);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.12s ease;
+}
+
+.drink:hover {
+  filter: brightness(0.97);
+}
+
+.drink:active {
+  transform: translateY(1px);
+}
+
+.drink:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cup-meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.cup-meta--over {
+  color: #9a5b00;
+  font-weight: 600;
+}
+
+.card--rate {
+  background: linear-gradient(180deg, #fff9ec, #fff4dc);
+  border-color: #f1dcae;
+}
+
+.card--rate .card-title {
+  color: #7a5a12;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+
+.card--rate .card-title span {
+  font-weight: 500;
+  color: #a0813c;
+}
+
+.stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stars button {
+  border: 0;
+  background: transparent;
+  padding: 2px 3px;
+  font-size: 24px;
+  line-height: 1;
+  color: #e4d6bd;
+  cursor: pointer;
+  transition: transform 0.1s ease, color 0.1s ease;
+}
+
+.stars button:hover {
+  transform: scale(1.15);
+  color: var(--star);
+}
+
+.stars button.on {
+  color: var(--star);
+}
+
+.stars-label {
+  margin-left: var(--space-2);
+  font-size: 11.5px;
+  color: #a0813c;
+}
+
 /* ------------------------------ cartões ----------------------------- */
 
 .card {
@@ -351,13 +460,14 @@ main {
 
 .card--stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: var(--space-3) 0;
 }
 
 .card--stats .stat {
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   border-left: 1px solid var(--latte);
+  min-width: 0;
 }
 
 .card--stats .stat:first-child {
@@ -414,6 +524,27 @@ main {
   background: transparent;
 }
 
+.chips--cups .chip b {
+  color: var(--cups);
+}
+
+.sub-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sub-title + .chips {
+  margin-bottom: var(--space-3);
+}
+
+.sub-title + .chips:last-child {
+  margin-bottom: 0;
+}
+
 /* lista de cafés (sem bordas, só separadores) */
 
 .list {
@@ -445,6 +576,24 @@ main {
   font-size: 13.5px;
   font-weight: 700;
   color: var(--espresso);
+}
+
+.list li .meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list li .brew-stats {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--cups);
+  background: rgba(43, 94, 168, 0.08);
+  border-radius: 999px;
+  padding: 2px 7px;
 }
 
 .list .empty {
@@ -486,6 +635,17 @@ main {
 
 .footer a:hover {
   text-decoration: underline;
+}
+
+.footer-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.footer .muted-link {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .link-btn {

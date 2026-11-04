@@ -161,6 +161,11 @@ button,
   line-height: 1.5;
 }
 
+.hint a {
+  color: var(--caramel-deep);
+  font-weight: 600;
+}
+
 .grant {
   display: flex;
   flex-direction: column;

@@ -3,6 +3,8 @@ import {
   ChartIcon,
   ClockIcon,
   CupIcon,
+  MugIcon,
+  StarIcon,
 } from "./Icons";
 
 const ICONS = {
@@ -10,6 +12,8 @@ const ICONS = {
   calendar: CalendarIcon,
   chart: ChartIcon,
   clock: ClockIcon,
+  mug: MugIcon,
+  star: StarIcon,
 } as const;
 
 type StatCardProps = {

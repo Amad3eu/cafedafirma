@@ -4,9 +4,9 @@
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-b4693a)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-241610)](https://nextjs.org)
 
-Site para registrar as **feitas de café** da empresa: um clique registra o horário, um aviso aparece quando o intervalo passa, e um histórico com gráficos mostra quantos cafés foram feitos por dia e em que horário.
+Site para a equipe registrar as **feitas de café** (quando o café foi passado), as **xícaras** que cada pessoa tomou no dia e **como estava o café** naquele momento. Um clique registra o horário, um aviso aparece quando o intervalo passa, e o histórico com gráficos e ranking mostra quem faz o melhor café, quanto se bebe e em que período o café sai melhor.
 
-Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para hospedar na **Vercel**, com **extensão para Chrome, Edge e Firefox** incluída.
+Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para hospedar na **Vercel**, com **extensão para Chrome, Edge e Firefox** incluída. Código aberto (MIT) em **<https://github.com/Amad3eu/cafedafirma>**.
 
 ![Tela principal](docs/preview-desktop.png)
 
@@ -17,6 +17,8 @@ Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para h
 ---
 
 ## ✨ O que ele faz
+
+### Feitas (quem faz o café)
 
 - **Registrar café agora** — grava só o horário (e opcionalmente quem registrou). Também dá para registrar um horário passado ("Outro horário").
 - **Aviso de "hora de cadastrar a feita"** — banner que aparece quando o último café passou do intervalo configurado (1h a 6h, ajustável na tela). Na extensão o mesmo aviso chega como notificação do navegador.
@@ -29,6 +31,16 @@ Feito com **Next.js 16 (App Router) + React 19 + Tailwind CSS 4**, pronto para h
 - **Funciona offline / sem banco** — se não houver banco configurado, o histórico fica no `localStorage` do navegador e o app avisa isso na tela.
 - **Migração automática** — quando o banco é conectado, o app oferece importar para o histórico compartilhado os cafés que estavam salvos só no navegador (ou descartá-los).
 - **Extensão de navegador** — registra o café sem abrir o site (clique no ícone, menu de contexto ou `Alt+Shift+C`), mostra o último café + contador do dia, avisa por notificação quando o intervalo passa, lembra o primeiro café do dia e avisa quando um colega registra (ex.: “Amadeu fez café ☕”).
+
+### Xícaras e notas (quem toma o café) — novo na 1.7
+
+- **Tomei um café** — cada pessoa conta as xícaras que tomou no dia. O site mostra "você: 2 de 4", quem tomou na equipe e o total do dia.
+- **Como estava o café?** — depois de uma xícara, o app pergunta a nota (1 a 5 estrelas). A nota fica ligada à **feita que estava no bule** naquele momento (a última registrada até 12 h antes), então dá para saber se o café daquele período estava bom.
+- **Meta diária** — sem meta ou de 2 a 8 xícaras, com medidor e aviso discreto ao passar.
+- **Ranking da firma** — quem faz o melhor café (média das notas, mínimo de 3 avaliações), quem mais fez café nos últimos 30 dias e a nota por período do dia (manhã, almoço, tarde, noite).
+- **Feitas × xícaras por dia** — gráfico de barras agrupadas com legenda, em paleta validada para daltonismo.
+- **Na extensão** — botão "Tomei um café" com estrelas no popup, atalho `Alt+Shift+T`, item no menu do botão direito e notificação com botões 👍/👎 para avaliar sem abrir nada.
+- **CSV** inclui as xícaras e as notas (coluna `tipo`: `feita` ou `xicara`).
 
 ---
 
@@ -43,11 +55,11 @@ npm run dev
 
 Abra http://localhost:3000.
 
-Em desenvolvimento, os cafés são salvos em `data/entries.json` (modo arquivo). Para começar com dados de exemplo:
+Em desenvolvimento, os cafés são salvos em `data/entries.json` e as xícaras em `data/cups.json` (modo arquivo). Para começar com dados de exemplo (feitas, xícaras e notas de 3 semanas):
 
 ```bash
-node scripts/seed-demo.cjs          # gera ~3 semanas de histórico de exemplo
-node scripts/seed-demo.cjs --clear  # limpa tudo
+npm run seed:demo           # gera ~3 semanas de histórico de exemplo
+npm run seed:demo -- --clear  # limpa tudo
 ```
 
 Scripts disponíveis:
@@ -58,8 +70,12 @@ Scripts disponíveis:
 | `npm run build` | build de produção |
 | `npm start` | roda o build de produção |
 | `npm run lint` | ESLint |
-| `node scripts/make-icons.cjs` | regenera os ícones (app + extensão) |
-| `node scripts/seed-demo.cjs` | dados de exemplo / `--clear` limpa |
+| `npm run typecheck` | `next typegen` + `tsc --noEmit` |
+| `npm test` | testes (formatação, estatísticas, helpers da API, consistência da extensão) |
+| `npm run check` | lint + tipos + testes, o mesmo que a CI roda |
+| `npm run build:ext` | sincroniza `extension/chrome` → `extension/firefox` e gera os zips |
+| `npm run make:icons` | regenera os ícones (app + extensão) |
+| `npm run seed:demo` | dados de exemplo / `-- --clear` limpa |
 
 ---
 
@@ -129,7 +145,7 @@ Veja `.env.example`.
 
 ## 🧩 Extensão do navegador
 
-O código está em `extension/chrome` e `extension/firefox` (mesmos arquivos, só o `manifest.json` muda). Os zips prontos ficam em `public/` e também são baixados pelo próprio site, no card **"Extensão para o navegador"**.
+O código está em `extension/chrome` (fonte da verdade) e `extension/firefox` (cópia automática; só o `manifest.json` é próprio). **Edite apenas em `chrome/`** e rode `npm run build:ext` — ele copia os arquivos compartilhados, regenera os ícones e empacota. A CI e o `npm test` falham se as duas pastas divergirem. Os zips prontos ficam em `public/` e também são baixados pelo próprio site, no card **"Extensão para o navegador"**.
 
 - `public/extensao-cafe-chrome.zip`
 - `public/extensao-cafe-firefox.zip`
@@ -159,10 +175,11 @@ npm run build:ext
 
 ### O que a extensão faz
 
-- **Popup**: último café + "há quanto tempo", contador de hoje, 7 dias e média, aviso laranja quando passou do intervalo, botão **Registrar café agora**, lista dos últimos cafés do dia e atalho para o site.
-- **Badge no ícone**: número de cafés de hoje.
-- **Notificação** a cada verificação (5 em 5 minutos) quando o intervalo configurado passou; clicar abre o site.
-- **Opções**: endereço do site, seu nome, intervalo do aviso (1h a 6h) e botão de teste de conexão.
+- **Popup**: último café + "há quanto tempo" + nota da feita, aviso laranja quando passou do intervalo, botão **Registrar café agora**, botão **Tomei um café** (com as estrelas "como estava o café?"), métricas de feitas / xícaras / você / nota, quem fez e quem tomou hoje, lista dos cafés do dia com xícaras e nota por feita, e atalho para o site e para o repositório.
+- **Badge no ícone**: número de feitas de hoje.
+- **Notificações**: intervalo (manhã/tarde), primeiro café do dia, "colega fez café" e, ao registrar uma xícara pelo atalho ou menu, "como estava o café?" com botões 👍 (nota 4) / 👎 (nota 2).
+- **Atalhos**: `Alt+Shift+C` registra a feita, `Alt+Shift+T` registra que você tomou um café, `Alt+Shift+P` abre o painel.
+- **Opções**: endereço do site, seu nome, intervalos do aviso, primeiro café do dia, aviso de colega, meta de xícaras por dia, ação do clique no ícone, frequência de verificação, teste de conexão e de notificação.
 
 ---
 
@@ -176,16 +193,17 @@ Edge Add-ons e Firefox AMO (com checklist e justificativa de permissões) e o ch
 
 Todas as rotas aceitam CORS (`Access-Control-Allow-Origin: *`), para a extensão conseguir chamar o site.
 
-### `GET /api/entries?days=60`
+### `GET /api/entries?days=60[&cups=1]`
 
 ```json
 {
   "storage": "redis",
-  "entries": [{ "id": "uuid", "ts": 1761214980000, "who": "Ana" }]
+  "entries": [{ "id": "uuid", "ts": 1761214980000, "who": "Ana" }],
+  "cups": [{ "id": "uuid", "ts": 1761215400000, "who": "Caio", "brewId": "uuid", "rating": 4 }]
 }
 ```
 
-`storage` pode ser `redis` (compartilhado), `file` (dev) ou `none` (sem banco → o app usa o navegador).
+`storage` pode ser `redis` (compartilhado), `file` (dev) ou `none` (sem banco → o app usa o navegador). `cups` só vem com `cups=1` — é uma única leitura no banco (pipeline), e é o que o site e a extensão usam.
 
 ### `POST /api/entries`
 
@@ -205,12 +223,46 @@ Todas as rotas aceitam CORS (`Access-Control-Allow-Origin: *`), para a extensão
 { "storage": "redis", "removed": true }
 ```
 
+### `GET /api/cups?days=60`
+
+```json
+{ "storage": "redis", "cups": [{ "id": "uuid", "ts": 1761215400000, "who": "Caio", "brewId": "uuid", "rating": 4 }] }
+```
+
+### `POST /api/cups`
+
+```json
+{ "who": "Caio", "rating": 4 }
+```
+
+Campos opcionais: `ts` (padrão: agora), `brewId`, `rating` (1–5), `note`. Sem `brewId`, a API liga a xícara à **última feita registrada até `ts`** (no máximo 12 h antes) — é "o café daquele período". Resposta: `{ "storage": "redis", "cup": { ... } }`.
+
+### `PATCH /api/cups?id=uuid`
+
+```json
+{ "rating": 5 }
+```
+
+Define a nota (ou remove, com `"rating": null`). Aceita também `note`. Responde `404` se a xícara não existe.
+
+### `DELETE /api/cups?id=uuid`
+
+```json
+{ "storage": "redis", "removed": true }
+```
+
+### `GET /api/health`
+
+Diagnóstico do armazenamento sem expor segredos: variável detectada, host, teste de escrita/leitura, `total` (feitas), `totalCups`, `visibleToApp` e `visibleCups`.
+
 Exemplo rápido com curl:
 
 ```bash
 curl -X POST https://SEU-SITE.vercel.app/api/entries \
   -H 'Content-Type: application/json' -d '{"who":"Ana"}'
-curl "https://SEU-SITE.vercel.app/api/entries?days=7"
+curl -X POST https://SEU-SITE.vercel.app/api/cups \
+  -H 'Content-Type: application/json' -d '{"who":"Caio","rating":4}'
+curl "https://SEU-SITE.vercel.app/api/entries?days=7&cups=1"
 ```
 
 ---
@@ -218,34 +270,46 @@ curl "https://SEU-SITE.vercel.app/api/entries?days=7"
 ## 🗂 Estrutura
 
 ```
-cafe-tracker/
+cafedafirma/
 ├─ app/
-│  ├─ api/entries/route.ts   # GET / POST / DELETE do histórico
+│  ├─ api/entries/route.ts   # GET (com ?cups=1) / POST / DELETE das feitas
+│  ├─ api/cups/route.ts      # GET / POST / PATCH / DELETE das xícaras e notas
+│  ├─ api/health/route.ts    # diagnóstico da persistência
+│  ├─ manifest.ts            # web app manifest (site instalável)
+│  ├─ privacidade/page.tsx   # política de privacidade (LGPD)
 │  ├─ layout.tsx             # fontes, metadata, CSS global
 │  ├─ page.tsx               # página principal (server) → <CoffeeApp />
 │  ├─ icon.png               # favicon gerado
 │  └─ globals.css            # Tailwind 4 + tokens de cor (café)
 ├─ components/
 │  ├─ CoffeeApp.tsx          # estado, ações, avisos, layout
-│  ├─ DayChart.tsx           # gráfico de cafés por dia
-│  ├─ HourChart.tsx          # gráfico de cafés por hora
-│  ├─ TodayList.tsx          # cafés de hoje
+│  ├─ CupsCard.tsx           # "Tomei um café", meta, nota e quem tomou
+│  ├─ RankingCard.tsx        # melhor café, quem mais fez, por período
+│  ├─ RatingStars.tsx        # 5 estrelas (leitura ou interativas)
+│  ├─ DayChart.tsx           # feitas × xícaras por dia (barras agrupadas)
+│  ├─ HourChart.tsx          # feitas por hora
+│  ├─ TodayList.tsx          # feitas de hoje, com xícaras e nota
 │  ├─ HistoryList.tsx        # histórico agrupado por dia
 │  ├─ StatCard.tsx           # cartões de métrica
 │  ├─ ExtensionCard.tsx      # card de download/instruções da extensão
 │  └─ Icons.tsx              # ícones SVG (sem dependências)
 ├─ lib/
-│  ├─ store.ts               # persistência: Redis → arquivo → nenhum
-│  ├─ redis.ts               # cliente REST do Upstash/Vercel KV (só fetch)
+│  ├─ store.ts               # persistência genérica: Redis → arquivo → nenhum
+│  ├─ redis.ts               # cliente REST do Upstash/Vercel KV (fetch + pipeline)
+│  ├─ stats.ts               # agregações puras (notas, rankings, períodos) — testadas
+│  ├─ api.ts                 # helpers das rotas (CORS, validação) — testados
 │  ├─ client-store.ts        # fetch + fallback localStorage + settings
-│  ├─ format.ts              # datas, horas, "há x min", rótulos
-│  └─ types.ts
+│  ├─ format.ts              # datas, horas, "há x min", rótulos — testado
+│  ├─ constants.ts           # DAY, URL do repositório, janelas de tempo
+│  └─ types.ts               # CoffeeEntry (feita), CupEntry (xícara), Rating
+├─ tests/                    # node --test (via tsx)
 ├─ extension/
-│  ├─ chrome/                # manifest MV3 + popup + options + background
-│  └─ firefox/               # idem, com manifest MV3 para o Gecko
+│  ├─ chrome/                # fonte da verdade: manifest MV3 + popup + options + background
+│  └─ firefox/               # cópia gerada por build:ext; só o manifest é próprio
 ├─ public/                   # zips das extensões + ícone
-├─ scripts/                  # geração de ícones e dados de exemplo
-└─ data/                     # (dev) entries.json — não vai para o git
+├─ scripts/                  # ícones, dados de exemplo, empacotamento da extensão
+├─ docs/                     # guia da extensão/sistema e capturas
+└─ data/                     # (dev) entries.json e cups.json — não vão para o git
 ```
 
 ---
@@ -255,7 +319,10 @@ cafe-tracker/
 - **Não há login**: quem tem o link registra e vê o histórico. Para uso interno, deixe o link só com a equipe. Se precisar de controle, os caminhos naturais são: Vercel Password Protection (plano Pro), um `?token=` na URL ou login com GitHub/e-mail.
 - O app guarda no máximo **12 meses** de histórico (limpeza automática no Redis).
 - Horários usam o **fuso do navegador** de quem registra/visualiza.
-- Ideias para depois: ranking de quem mais fez café no mês, tipos de café (expresso, coado...), "quem faz o próximo" e relatório mensal por e-mail.
+- As xícaras e notas são por **nome digitado**, sem login — a mesma confiança do resto do app.
+- Ideias para depois: tipos de café (expresso, coado...), "quem faz o próximo" (rodízio), relatório mensal por e-mail/Slack e login opcional.
+
+Histórico de versões em [CHANGELOG.md](CHANGELOG.md). Sugestões e problemas: [issues do repositório](https://github.com/Amad3eu/cafedafirma/issues).
 
 Feito com Next.js 16 ⚡ e uma boa quantidade de café.
 
@@ -269,5 +336,5 @@ MIT — veja [LICENSE](LICENSE). Use, modifique e compartilhe à vontade, manten
 
 O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request:
 
-- **Site:** `npm ci` → `eslint` → `next typegen && tsc --noEmit` → `next build`
-- **Extensão:** validação do `manifest.json` (MV3, permissões, ícones, background por navegador), checagem de sintaxe dos scripts e `web-ext lint` da Mozilla (0 erros e 0 avisos obrigatórios)
+- **Site:** `npm ci` → `eslint` → `next typegen && tsc --noEmit` → `npm test` → `next build` (Node 22)
+- **Extensão:** validação do `manifest.json` (MV3, permissões, ícones, background por navegador, versão igual à do `package.json`), checagem de que `firefox/` espelha `chrome/`, sintaxe dos scripts e `web-ext lint` da Mozilla (0 erros e 0 avisos obrigatórios)

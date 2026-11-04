@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import CoffeeApp from "@/components/CoffeeApp";
+import pkg from "@/package.json";
 
 export default async function Home() {
   const headerList = await headers();
@@ -8,5 +9,5 @@ export default async function Home() {
   const proto = headerList.get("x-forwarded-proto") ?? "http";
   const siteUrl = `${proto}://${host}`;
 
-  return <CoffeeApp siteUrl={siteUrl} />;
+  return <CoffeeApp siteUrl={siteUrl} version={pkg.version} />;
 }

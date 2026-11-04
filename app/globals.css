@@ -11,6 +11,8 @@
   --color-caramel-deep: #96522a;
   --color-latte: #e7d6c3;
   --color-muted: #8a7768;
+  /* segunda série dos gráficos (xícaras) — validada contra o caramelo para daltonismo */
+  --color-cups: #2b5ea8;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;

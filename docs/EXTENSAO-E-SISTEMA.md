@@ -31,12 +31,12 @@ Eles são gerados por `npm run build:ext` e também são baixados pelo próprio 
 
 | Recurso | Detalhe |
 | --- | --- |
-| Popup | Último café + "há quanto tempo", cafés de hoje, 7 dias, média/dia, lista dos cafés do dia |
+| Popup | Último café + "há quanto tempo" + nota da feita, feitas / xícaras / você / nota de hoje, quem fez e quem tomou, lista dos cafés do dia com xícaras e nota |
 | Aviso | Banner laranja quando passou do intervalo configurado (1h–6h) |
-| Botão | "Registrar café agora" (um clique, usa o nome configurado) |
-| Badge | Número de cafés do dia no ícone da barra |
-| Notificação | A cada 5 min o service worker confere; se passou do intervalo, dispara notificação do SO (clicar abre o site) |
-| Opções | Endereço do site, seu nome, intervalo do aviso e botão "Testar conexão" |
+| Botões | "Registrar café agora" (a feita) e "Tomei um café" (a xícara, com estrelas para avaliar) |
+| Badge | Número de feitas do dia no ícone da barra |
+| Notificação | A cada 2 min (configurável) o service worker confere; se passou do intervalo, dispara notificação do SO; ao tomar um café pelo atalho, pergunta a nota com botões 👍/👎 |
+| Opções | Endereço do site, seu nome, intervalos, primeiro café, aviso de colega, meta de xícaras, clique no ícone, frequência e testes |
 
 ---
 
@@ -115,18 +115,21 @@ Reaproveita o **mesmo zip** do Chrome: <https://partner.microsoft.com/dashboard/
             ▼                                   ▼
         ┌─────────────────────────────────────────────┐
         │  Next.js 16 na Vercel                       │
-        │  GET  /api/entries?days=N                   │
+        │  GET  /api/entries?days=N&cups=1            │
         │  POST /api/entries   { ts?, who? }          │
         │  DELETE /api/entries?id=...                 │
+        │  GET/POST/PATCH/DELETE /api/cups            │
+        │       { who, brewId?, rating? }             │
         └───────────────┬─────────────────────────────┘
                         │ lib/store.ts escolhe o modo
         ┌───────────────┴───────────────┐
         ▼                               ▼
 ┌──────────────────┐          ┌────────────────────────┐
 │ Upstash Redis    │   ou     │ arquivo local (dev)    │
-│ (produção,       │          │ data/entries.json      │
-│ compartilhado)   │          └────────────────────────┘
-└──────────────────┘                       ou
+│ cafe:entries     │          │ data/entries.json      │
+│ cafe:cups        │          │ data/cups.json         │
+└──────────────────┘          └────────────────────────┘
+                                           ou
                                  ┌────────────────────────┐
                                  │ localStorage (fallback │
                                  │ no navegador, sem DB)  │
@@ -137,7 +140,7 @@ Reaproveita o **mesmo zip** do Chrome: <https://partner.microsoft.com/dashboard/
 
 1. **Registrar café** — botão → `POST /api/entries` com `ts` (agora) e `who` (nome salvo). A API valida (máx. 60 dias no passado), cria `id` (uuid) e grava como item de um **sorted set** no Redis (`score = timestamp`), o que já mantém a ordem e permite consultas por período.
 2. **Aviso de "hora do café"** — o front compara `agora - últimoCafé` com o intervalo escolhido (padrão 3h, salvo em `localStorage`). Passou → banner + botão "Registrar agora". A extensão faz a mesma conta e dispara **notificação do sistema** a cada 5 min.
-3. **Histórico e gráficos** — um único `GET /api/entries?days=60` alimenta: cartão do último café, lista de hoje, histórico agrupado por dia (com "hoje/ontem/21/10"), gráfico por dia (14 dias), gráfico por hora do dia, pico, média e CSV. Tudo calculado no cliente, sem novas chamadas.
+3. **Histórico e gráficos** — um único `GET /api/entries?days=60&cups=1` (feitas **e** xícaras, via pipeline no Redis) alimenta: cartão do último café, lista de hoje, histórico agrupado por dia (com "hoje/ontem/21/10"), gráfico por dia (14 dias), gráfico por hora do dia, pico, média e CSV. Tudo calculado no cliente, sem novas chamadas.
 4. **Modo sem banco** — se `UPSTASH_REDIS_REST_*` não existe, a API responde `storage: "none"` e o app passa a usar `localStorage`, mostrando o selo "só neste navegador". É degradação limpa, não erro.
 5. **Multiusuário e sincronização** — em modo Redis todo mundo vê o mesmo histórico. O site revalida ao voltar o foco na aba/janela e a cada **20 s com a aba visível** (sem consultar em segundo plano, para economizar comandos do Redis). Há também o botão **“atualizado HH:MM”** no cabeçalho, que força uma busca na hora — clique nele no celular/desktop para trazer os cafés registrados em outro dispositivo.
 
@@ -145,12 +148,18 @@ Reaproveita o **mesmo zip** do Chrome: <https://partner.microsoft.com/dashboard/
 
 | Camada | Arquivo |
 | --- | --- |
-| API REST | `app/api/entries/route.ts` |
-| Regra de persistência (Redis → arquivo → nenhum) | `lib/store.ts` |
-| Cliente Redis (só `fetch`, sem dependência) | `lib/redis.ts` |
+| API REST (feitas) | `app/api/entries/route.ts` |
+| API REST (xícaras e notas) | `app/api/cups/route.ts` |
+| Helpers das rotas (CORS, validação) | `lib/api.ts` |
+| Regra de persistência (Redis → arquivo → nenhum), genérica para as duas coleções | `lib/store.ts` |
+| Cliente Redis (só `fetch`, com pipeline) | `lib/redis.ts` |
+| Agregações: nota por feita, ranking, períodos | `lib/stats.ts` |
 | Estado, avisos, gráficos, ações | `components/CoffeeApp.tsx` |
+| "Tomei um café", meta, nota e quem tomou | `components/CupsCard.tsx` |
+| Ranking (melhor café, mais feitas, por período) | `components/RankingCard.tsx` |
 | Fallback de navegador + preferências | `lib/client-store.ts` |
 | Formatação de datas/horas ("há 2 h") | `lib/format.ts` |
+| Testes (`npm test`) | `tests/*.test.ts` |
 
 ---
 
@@ -163,6 +172,7 @@ O que **já está pronto**:
 - aviso interno e notificação na extensão
 - último café, hoje, histórico de 60 dias, exclusão com desfazer
 - 2 gráficos + 4 métricas + exportação CSV
+- xícaras por pessoa, nota do café por feita, meta diária e ranking (v1.7)
 - histórico compartilhado (Redis) **ou** local, com aviso claro na tela
 - API com CORS para a extensão
 - extensão Chrome/Edge/Firefox com badge e notificação
@@ -174,10 +184,10 @@ O que **não tem** (e não estava no pedido):
 | Login / controle de acesso | quem tem o link registra e vê tudo | médio (NextAuth, Clerk ou token na URL) |
 | Contas por pessoa | "quem" é só um nome digitado, sem validação | médio (junto com o login) |
 | Notificação fora do navegador (WhatsApp/Slack/e-mail) | o aviso só aparece com o site/aba aberta | médio (cron da Vercel + webhook) |
-| Testes automatizados | confiança vem de testes manuais | médio |
+| Testes de interface (os testes atuais cobrem a lógica, não o React) | regressão visual só se vê na mão | médio |
 | PWA instalável / offline de verdade | hoje funciona offline só em modo localStorage | baixo/médio |
 | Edição de registros (hoje só criar/excluir) | pequeno incômodo | baixo |
-| Ranking mensal, tipos de café | “nice to have” | baixo |
+| Tipos de café, rodízio de "quem faz o próximo" | “nice to have” | baixo |
 
 Ou seja: **MVP de produção completo para uma equipe pequena**. As três lacunas que valem investir, se o uso crescer, são **login**, **aviso por WhatsApp/Slack** e **testes**.
 
@@ -310,3 +320,55 @@ Sistema de espaçamento em múltiplos de 4 px (`4 / 8 / 12 / 16 / 20 / 24`), rai
 - **Lista** sem bordas por item: apenas separadores finos.
 - O cartão **"Cafés de hoje" desaparece** quando não há registros.
 - O erro só aparece após uma tentativa e é limpo ao reabrir o popup.
+
+---
+
+## 11. Xícaras e notas: "como estava o café?" (v1.7)
+
+Até a 1.6 o app só sabia **quando** o café foi feito. Agora ele também sabe
+**quanto cada pessoa tomou** e **se o café estava bom** naquele período.
+
+### Modelo
+
+| Coisa | Tipo | Onde | O que guarda |
+| --- | --- | --- | --- |
+| Feita | `CoffeeEntry` | `cafe:entries` / `data/entries.json` | `id`, `ts`, `who` (quem fez) |
+| Xícara | `CupEntry` | `cafe:cups` / `data/cups.json` | `id`, `ts`, `who` (quem tomou), `brewId`, `rating` 1–5 |
+
+A ligação xícara → feita é feita **na hora do registro**: a feita ativa é a
+última registrada até aquele instante, desde que tenha no máximo 12 h
+(`activeBrewAt` em `lib/stats.ts`). O site manda o `brewId` que calculou; a
+extensão deixa o servidor resolver (`POST /api/cups` sem `brewId`).
+
+### Fluxo
+
+1. **Tomei um café** (site, popup, `Alt+Shift+T` ou botão direito) → `POST /api/cups { who }`.
+2. O app pergunta **"Como estava o café?"** com 5 estrelas (no popup/site) ou
+   com os botões 👍 (nota 4) / 👎 (nota 2) na notificação. A pergunta fica
+   disponível por 30 min; dá para mudar a nota depois clicando na xícara no site.
+3. `PATCH /api/cups?id=... { rating }` grava a nota (ou `null` para remover).
+4. A nota aparece na feita correspondente (lista de hoje, último café do popup),
+   na média do dia, no ranking de baristas e na tabela por período.
+
+### Leitura dos números
+
+- **Nota do café (hoje)**: média das xícaras avaliadas do dia.
+- **Quem faz o melhor café**: média das notas das xícaras que saíram das feitas
+  de cada pessoa, últimos 30 dias, mínimo de 3 avaliações (`MIN_RATINGS_FOR_RANKING`).
+- **Por período do dia**: classifica pela hora da **feita** (manhã < 12h,
+  almoço 12–14h, tarde 14–18h, noite), não pela hora da xícara — a pergunta é
+  "o café passado de tarde é pior?".
+- **Meta diária**: preferência local (site: `localStorage`; extensão:
+  `storage.local`), não vai para o servidor.
+
+### Compatibilidade
+
+- Extensão 1.7 com site antigo: o `GET` não traz `cups`, então o botão
+  "Tomei um café" e as métricas de xícaras somem sozinhos.
+- Site 1.7 com extensão antiga: continua funcionando; a extensão só não vê as xícaras.
+- Modo local (sem Redis): xícaras ficam no navegador e são importadas junto com
+  as feitas quando o banco é conectado (mantendo o vínculo).
+
+### Repositório
+
+Código, issues e changelog: <https://github.com/Amad3eu/cafedafirma>.
