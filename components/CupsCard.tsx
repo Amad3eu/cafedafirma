@@ -26,6 +26,8 @@ type Props = {
   cupGoal: number;
   /** xícara recém-registrada que ainda pede nota */
   promptCupId: string | null;
+  /** "Café atual tem 1h40 · nessa idade a nota costuma ser 2,9." */
+  freshnessHint?: string | null;
   onDrink: () => void;
   onRate: (cup: CupEntry, rating: Rating | null) => void;
   onRemove: (cup: CupEntry) => void;
@@ -50,6 +52,7 @@ export default function CupsCard({
   histogram,
   cupGoal,
   promptCupId,
+  freshnessHint,
   onDrink,
   onRate,
   onRemove,
@@ -184,6 +187,7 @@ export default function CupsCard({
           ) : (
             "Nenhuma feita recente — a xícara fica sem café associado, mas conta no seu dia."
           )}
+          {activeBrew && freshnessHint ? <span className="block text-muted/90">{freshnessHint}</span> : null}
         </p>
 
         {/* pedido de nota da xícara recém-registrada */}

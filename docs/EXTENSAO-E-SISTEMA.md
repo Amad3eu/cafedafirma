@@ -369,6 +369,21 @@ extensão deixa o servidor resolver (`POST /api/cups` sem `brewId`).
 - Modo local (sem Redis): xícaras ficam no navegador e são importadas junto com
   as feitas quando o banco é conectado (mantendo o vínculo).
 
+---
+
+## 12. Rodízio e frescor (v1.8)
+
+Duas leituras novas, calculadas em `lib/stats.ts` a partir das mesmas feitas e
+xícaras dos últimos 30 dias:
+
+| Cartão | Conta | Onde aparece |
+| --- | --- | --- |
+| **Quem faz o próximo?** | `dívida = xícaras tomadas − feitas × (xícaras por feita no período)`. Maior dívida primeiro; empate para quem fez café há mais tempo (nunca ter feito conta como "há mais tempo"). | cartão no site, linha abaixo de "Registrar café agora" e `Próximo café: …` no popup |
+| **Café fresco vale mais?** | nota média das xícaras por idade do café (`xícara.ts − feita.ts`) em 4 faixas; a conclusão aponta a primeira faixa com ≥ 3 notas cuja média cai ≥ 0,5 em relação à faixa fresca | cartão no site e "Café atual tem 1h40 · nessa idade a nota costuma ser 2,9" em "Tomei um café" |
+
+Nomes são comparados sem caixa e sem espaços nas pontas ("Ana" e "ana " são a
+mesma pessoa). Quem nunca registrou xícara nem feita com nome não entra.
+
 ### Repositório
 
 Código, issues e changelog: <https://github.com/Amad3eu/cafedafirma>.

@@ -271,3 +271,151 @@ export function peakHour(items: { ts: number }[]): number | null {
   }
   return best;
 }
+
+/* --------------------------- quem faz o próximo ---------------------------- */
+
+export type BrewDebt = {
+  who: string;
+  /** feitas da pessoa no período */
+  brews: number;
+  /** xícaras que a pessoa tomou no período */
+  cups: number;
+  /**
+   * "Dívida" em xícaras: tomou − fez × média de xícaras por feita. Positivo =
+   * bebe mais do que faz; negativo = faz mais do que bebe.
+   */
+  debt: number;
+  lastBrewTs: number | null;
+};
+
+/** Quantas xícaras uma feita rende, em média, no período (mínimo 1). */
+export function cupsPerBrew(entries: CoffeeEntry[], cups: CupEntry[]): number {
+  if (entries.length === 0) return 1;
+  const ids = new Set(entries.map((entry) => entry.id));
+  const linked = cups.filter((cup) => cup.brewId && ids.has(cup.brewId)).length;
+  return Math.max(1, linked / entries.length);
+}
+
+/**
+ * Rodízio justo: ordena a equipe por quem mais "deve" café, isto é, quem tomou
+ * muitas xícaras e fez poucas feitas. Empate: quem fez café há mais tempo vai
+ * na frente (nunca ter feito conta como "há mais tempo").
+ */
+export function nextBrewerRanking(entries: CoffeeEntry[], cups: CupEntry[]): BrewDebt[] {
+  const perBrew = cupsPerBrew(entries, cups);
+  const people = new Map<string, BrewDebt>();
+
+  const slot = (who: string | undefined): BrewDebt | null => {
+    const key = normalizeName(who);
+    if (!key) return null;
+    let item = people.get(key);
+    if (!item) {
+      item = { who: (who ?? "").trim(), brews: 0, cups: 0, debt: 0, lastBrewTs: null };
+      people.set(key, item);
+    }
+    return item;
+  };
+
+  for (const entry of entries) {
+    const item = slot(entry.who);
+    if (!item) continue;
+    item.brews += 1;
+    if (item.lastBrewTs === null || entry.ts > item.lastBrewTs) item.lastBrewTs = entry.ts;
+  }
+  for (const cup of cups) {
+    const item = slot(cup.who);
+    if (item) item.cups += 1;
+  }
+
+  const list = [...people.values()];
+  for (const item of list) item.debt = item.cups - item.brews * perBrew;
+
+  return list.sort(
+    (a, b) =>
+      b.debt - a.debt ||
+      (a.lastBrewTs ?? -Infinity) - (b.lastBrewTs ?? -Infinity) ||
+      a.who.localeCompare(b.who),
+  );
+}
+
+/* --------------------------- nota × idade do café -------------------------- */
+
+export type AgeBucket = {
+  label: string;
+  /** limite superior em minutos (null = sem limite) */
+  maxMinutes: number | null;
+  cups: number;
+  ratings: number;
+  avg: number | null;
+};
+
+export const AGE_BUCKETS: readonly { label: string; maxMinutes: number | null }[] = [
+  { label: "até 30 min", maxMinutes: 30 },
+  { label: "30 min a 1 h", maxMinutes: 60 },
+  { label: "1 h a 2 h", maxMinutes: 120 },
+  { label: "mais de 2 h", maxMinutes: null },
+];
+
+/** Índice da faixa de idade em que uma xícara cai (idade = xícara − feita). */
+export function ageBucketIndex(ageMs: number): number {
+  const minutes = Math.max(0, ageMs) / 60_000;
+  for (let i = 0; i < AGE_BUCKETS.length; i++) {
+    const max = AGE_BUCKETS[i].maxMinutes;
+    if (max === null || minutes < max) return i;
+  }
+  return AGE_BUCKETS.length - 1;
+}
+
+/**
+ * Nota média por idade do café na hora da xícara. Responde "café velho é
+ * pior?" com os dados da própria equipe.
+ */
+export function ratingByBrewAge(entries: CoffeeEntry[], cups: CupEntry[]): AgeBucket[] {
+  const brewTs = new Map(entries.map((entry) => [entry.id, entry.ts] as const));
+  const acc = AGE_BUCKETS.map(() => ({ cups: 0, ratings: [] as number[] }));
+
+  for (const cup of cups) {
+    const ts = cup.brewId ? brewTs.get(cup.brewId) : undefined;
+    if (ts === undefined) continue;
+    const bucket = acc[ageBucketIndex(cup.ts - ts)];
+    bucket.cups += 1;
+    if (cup.rating) bucket.ratings.push(cup.rating);
+  }
+
+  return AGE_BUCKETS.map((def, i) => ({
+    label: def.label,
+    maxMinutes: def.maxMinutes,
+    cups: acc[i].cups,
+    ratings: acc[i].ratings.length,
+    avg: average(acc[i].ratings),
+  }));
+}
+
+export type FreshnessInsight = {
+  /** faixa mais fresca com dados suficientes */
+  fresh: AgeBucket;
+  /** primeira faixa, depois da fresca, em que a nota cai de forma relevante */
+  drop: AgeBucket | null;
+};
+
+/**
+ * Lê as faixas e encontra a partir de quando a nota cai. `minRatings` evita
+ * conclusões com uma ou duas notas; `minDrop` é a queda mínima na média.
+ */
+export function freshnessInsight(
+  buckets: AgeBucket[],
+  minRatings = 3,
+  minDrop = 0.5,
+): FreshnessInsight | null {
+  const usable = buckets.filter((b) => b.ratings >= minRatings && b.avg !== null);
+  if (usable.length === 0) return null;
+  const fresh = usable[0];
+  const drop =
+    usable.find((b) => b !== fresh && (b.avg ?? 0) <= (fresh.avg ?? 0) - minDrop) ?? null;
+  return { fresh, drop };
+}
+
+/** Faixa de idade de um café feito em `brewTs`, visto em `now`, com nota típica. */
+export function brewAgeBucket(buckets: AgeBucket[], brewTs: number, now: number): AgeBucket {
+  return buckets[ageBucketIndex(now - brewTs)];
+}

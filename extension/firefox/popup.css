@@ -269,6 +269,18 @@ main {
   color: #e9d7c4;
 }
 
+.hero-next {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11.5px;
+  color: #d6c1ad;
+}
+
+.hero-next strong {
+  color: var(--cream);
+}
+
 /* ----------------------------- lembrete ----------------------------- */
 
 .reminder {
