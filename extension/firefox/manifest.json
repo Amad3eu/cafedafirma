@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Café da Firma",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Registre a feita do café, conte suas xícaras e avalie o café, em um clique, sem abrir o site.",
   "browser_specific_settings": {
     "gecko": {
